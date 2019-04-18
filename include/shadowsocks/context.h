@@ -1,19 +1,16 @@
 #pragma once
 
-#include <botan/botan.h>
 #include <botan/stream_cipher.h>
 #include <botan/auto_rng.h>
 
-#include <context.h>
+#include <shadowsocks/context.h>
 
 namespace shadowsocks
 {
-namespace detail
-{
 
-class engine
+class context
 {
-    struct cipher_data
+    struct engine
     {
         std::unique_ptr<Botan::StreamCipher> cipher_;
         size_t iv_wanted_;
@@ -21,21 +18,20 @@ class engine
     };
 
 public:
-    engine(const context & ctx)
+    context(const std::string & algo_spec, const std::vector<uint8_t> & key)
     {
-        for(auto & i : cipher_data_)
+        for(auto & i : engine_)
         {
-            i.cipher_ = Botan::StreamCipher::create(ctx.algo_spec);
+            i.cipher_ = Botan::StreamCipher::create_or_throw(algo_spec);
             // todo: process failed later
-            i.cipher_->set_key(ctx.key);
+            i.cipher_->set_key(key);
             i.iv_wanted_ = i.cipher_->default_iv_length();
             i.iv_.resize(i.cipher_->default_iv_length());
         }
-        Botan::AutoSeeded_RNG{}.randomize(cipher_data_[1].iv_.data(), cipher_data_[1].iv_.size());
+        Botan::AutoSeeded_RNG{}.randomize(engine_[1].iv_.data(), engine_[1].iv_.size());
     }
 
-    std::array<cipher_data, 2> cipher_data_;
+    std::array<engine, 2> engine_;
 };
 
-}
 }
