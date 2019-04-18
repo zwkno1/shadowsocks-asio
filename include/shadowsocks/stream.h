@@ -19,6 +19,18 @@ public:
         , context_(std::move(ctx))
     {
     }
+    
+    stream(stream && other)
+        : next_layer_(std::move(other.next_layer_))
+        , context_(std::move(other.context_))
+    {
+    }
+    
+    stream & operator=(stream && other)
+    {
+        next_layer_ = std::move(other.next_layer_);
+        context_ = std::move(other.context_);
+    }
 
     Stream & next_layer()
     {
@@ -28,7 +40,7 @@ public:
     template <typename ConstBufferSequence, typename WriteHandler>
     BOOST_ASIO_INITFN_RESULT_TYPE(WriteHandler,
         void (boost::system::error_code, std::size_t))
-    async_write(const ConstBufferSequence& buffers,
+    async_write_some(const ConstBufferSequence& buffers,
         BOOST_ASIO_MOVE_ARG(WriteHandler) handler)
     {
       // If you get an error on the following line it means that your handler does

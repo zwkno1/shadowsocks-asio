@@ -44,6 +44,7 @@ public:
                     return;
                 }
 
+                assert(bytes_transferred == context_.engine_[1].iv_wanted_);
                 context_.engine_[1].iv_wanted_ = 0;
                 context_.engine_[1].cipher_->set_iv(context_.engine_[1].iv_.data(),
                         context_.engine_[1].iv_.size());

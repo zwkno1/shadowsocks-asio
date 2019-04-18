@@ -58,13 +58,9 @@ public:
                     handler_(ec, bytes_transferred);
                     return;
                 }
-
-                context_.engine_[0].iv_wanted_ -= bytes_transferred;
-                if(context_.engine_[0].iv_wanted_ != 0)
-                {
-                    start = 1;
-                    continue;
-                }
+                
+                assert(bytes_transferred == context_.engine_[0].iv_wanted_);
+                context_.engine_[0].iv_wanted_ = 0;
                 context_.engine_[0].cipher_->set_iv(context_.engine_[0].iv_.data(),
                         context_.engine_[0].iv_.size());
             default:
