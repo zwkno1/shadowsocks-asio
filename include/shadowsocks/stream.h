@@ -2,7 +2,7 @@
 
 #include <boost/asio.hpp>
 
-#include <shadowsocks/context.h>
+#include <shadowsocks/cipher_context.h>
 #include <shadowsocks/detail/read_op.h>
 #include <shadowsocks/detail/write_op.h>
 
@@ -14,7 +14,7 @@ class stream
 {
 public:
     template<typename Arg>
-    stream(Arg && arg, context && ctx)
+    stream(Arg && arg, cipher_context && ctx)
         : next_layer_(std::move(arg))
         , context_(std::move(ctx))
     {
@@ -30,6 +30,7 @@ public:
     {
         next_layer_ = std::move(other.next_layer_);
         context_ = std::move(other.context_);
+        return *this;
     }
 
     Stream & next_layer()
@@ -76,7 +77,7 @@ public:
 private:
     Stream next_layer_;
 
-    context context_;
+    cipher_context context_;
 };
 
 }

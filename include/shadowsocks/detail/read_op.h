@@ -2,7 +2,7 @@
 
 #include <boost/asio.hpp>
 
-#include <shadowsocks/context.h>
+#include <shadowsocks/cipher_context.h>
 
 namespace shadowsocks
 {
@@ -14,7 +14,7 @@ template <typename Stream, typename MutableBufferSequence, typename Handler>
 class read_op
 {
 public:
-    read_op(Stream & next_layer, context & ctx, const MutableBufferSequence & buffers, Handler & h)
+    read_op(Stream & next_layer, cipher_context & ctx, const MutableBufferSequence & buffers, Handler & h)
         : next_layer_(next_layer)
         , context_(ctx)
         , buffers_(buffers)
@@ -22,8 +22,7 @@ public:
     {
     }
 
-    void operator()(boost::system::error_code ec,
-        std::size_t bytes_transferred, int start = 0)
+	void operator()(boost::system::error_code ec, std::size_t bytes_transferred, int start = 0)
     {
         for(;;)
         {
@@ -33,8 +32,7 @@ public:
                 if(context_.engine_[0].iv_wanted_ != 0)
                 {
                     boost::asio::async_read(next_layer_,
-                        boost::asio::buffer(&*(context_.engine_[0].iv_.end() - context_.engine_[0].iv_wanted_),
-                            context_.engine_[0].iv_wanted_),
+					    boost::asio::buffer(&*(context_.engine_[0].iv_.end() - context_.engine_[0].iv_wanted_), context_.engine_[0].iv_wanted_),
                         std::move(*this));
                     return;
                 }
@@ -51,7 +49,7 @@ public:
                         boost::asio::mutable_buffer buffer(*iter);
                         if (buffer.size() != 0)
                         {
-                            context_.engine_[0].cipher_->cipher1(reinterpret_cast<uint8_t *>(buffer.data()), std::min(buffer.size(), bytes));
+							context_.engine_[0].cipher_->cipher1(reinterpret_cast<uint8_t *>(buffer.data()),  std::min(buffer.size(), bytes));
                             bytes -= std::min(buffer.size(), bytes);
                         }
                     }
@@ -61,8 +59,7 @@ public:
                 
                 assert(bytes_transferred == context_.engine_[0].iv_wanted_);
                 context_.engine_[0].iv_wanted_ = 0;
-                context_.engine_[0].cipher_->set_iv(context_.engine_[0].iv_.data(),
-                        context_.engine_[0].iv_.size());
+				context_.engine_[0].cipher_->set_iv(context_.engine_[0].iv_.data(), context_.engine_[0].iv_.size());
             default:
                 next_layer_.async_read_some(buffers_, std::move(*this));
                 return;
@@ -73,7 +70,7 @@ public:
 private:
     Stream & next_layer_;
 
-    context & context_;
+    cipher_context & context_;
 
     MutableBufferSequence buffers_;
 
@@ -81,7 +78,7 @@ private:
 };
 
 template <typename Stream, typename MutableBufferSequence, typename Handler>
-inline void async_read(Stream& next_layer, context & ctx, const MutableBufferSequence & buffers, Handler& handler)
+inline void async_read(Stream& next_layer, cipher_context & ctx, const MutableBufferSequence & buffers, Handler& handler)
 {
     read_op<Stream, MutableBufferSequence, Handler>{next_layer, ctx, buffers, handler}(boost::system::error_code{}, 0, 1);
 }
