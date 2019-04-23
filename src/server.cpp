@@ -3,27 +3,27 @@
 #include <client_session.h>
 
 
-#include <botan/md5.h>
-
-std::vector<uint8_t> evpBytesTokey(const std::string & password)
-{
-    std::vector<uint8_t> key;
-    key.resize(32);
-    Botan::MD5 md5;
-    md5.update(reinterpret_cast<const uint8_t * >(password.data()) , password.size());
-    md5.final(key.data());
-    md5.update(key.data(), 16);
-    md5.update(reinterpret_cast<const uint8_t * >(password.data()) , password.size());
-    md5.final(key.data()+16);
-    return key;
-}
+//#include <botan/md5.h>
+//
+//std::vector<uint8_t> evpBytesTokey(const std::string & password)
+//{
+//    std::vector<uint8_t> key;
+//    key.resize(32);
+//    Botan::MD5 md5;
+//    md5.update(reinterpret_cast<const uint8_t * >(password.data()) , password.size());
+//    md5.final(key.data());
+//    md5.update(key.data(), 16);
+//    md5.update(reinterpret_cast<const uint8_t * >(password.data()) , password.size());
+//    md5.final(key.data()+16);
+//    return key;
+//}
 
 int main(int argc, char *argv[])
 {
     boost::asio::io_context context;
 
     std::string algo = "ChaCha(20)";
-    std::vector<uint8_t> key = evpBytesTokey("123456");
+    std::vector<uint8_t> key;// = evpBytesTokey("123456");
 
     shadowsocks::tcp_listener<std::function<void(boost::asio::ip::tcp::socket &&)>> listener(context, [&algo, &key](boost::asio::ip::tcp::socket && s)
     {

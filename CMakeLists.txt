@@ -4,13 +4,13 @@ set(CMAKE_CXX_STANDARD 17)
 project(shadowsocks-asio)
 
 #set(Boost_USE_STATIC_LIBS ON)
+include(${PROJECT_SOURCE_DIR}/cmake/external/cryptopp.cmake)
 
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules ${CMAKE_MODULE_PATH})
 
 find_package(Boost 1.66 COMPONENTS system REQUIRED )
-find_package(Botan2 2.9.0 REQUIRED)
 
-include_directories(${Boost_INCLUDE_DIR} ${BOTAN2_INCLUDE_DIRS})
+include_directories(${Boost_INCLUDE_DIR} ${CryptoPP_INCLUDE_DIRS})
 
 find_package(Threads)
 
@@ -26,7 +26,7 @@ add_executable(ss-server
 
 target_link_libraries(ss-server
 	${Boost_LIBRARIES}
-	${BOTAN2_LIBRARIES}
+	${CryptoPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
 	)
 

@@ -29,17 +29,17 @@ public:
             switch (start)
             {
             case 1:
-                if(context_.engine_[0].iv_wanted_ != 0)
-                {
-                    boost::asio::async_read(next_layer_,
-					    boost::asio::buffer(&*(context_.engine_[0].iv_.end() - context_.engine_[0].iv_wanted_), context_.engine_[0].iv_wanted_),
-                        std::move(*this));
-                    return;
-                }
+                //if(context_.engine_[0].iv_wanted_ != 0)
+                //{
+                //    boost::asio::async_read(next_layer_,
+                //        boost::asio::buffer(&*(context_.engine_[0].iv_.end() - context_.engine_[0].iv_wanted_), context_.engine_[0].iv_wanted_),
+                //        std::move(*this));
+                //    return;
+                //}
                 start = 2;
                 continue;
             case 0:
-                if((context_.engine_[0].iv_wanted_ == 0) || ec)
+                //if((context_.engine_[0].iv_wanted_ == 0) || ec)
                 {
                     size_t bytes = bytes_transferred;
                     for(auto iter = boost::asio::buffer_sequence_begin(buffers_); iter != boost::asio::buffer_sequence_end(buffers_); ++iter)
@@ -49,7 +49,7 @@ public:
                         boost::asio::mutable_buffer buffer(*iter);
                         if (buffer.size() != 0)
                         {
-							context_.engine_[0].cipher_->cipher1(reinterpret_cast<uint8_t *>(buffer.data()),  std::min(buffer.size(), bytes));
+                            //context_.engine_[0].cipher_->cipher1(reinterpret_cast<uint8_t *>(buffer.data()),  std::min(buffer.size(), bytes));
                             bytes -= std::min(buffer.size(), bytes);
                         }
                     }
@@ -57,9 +57,9 @@ public:
                     return;
                 }
                 
-                assert(bytes_transferred == context_.engine_[0].iv_wanted_);
-                context_.engine_[0].iv_wanted_ = 0;
-				context_.engine_[0].cipher_->set_iv(context_.engine_[0].iv_.data(), context_.engine_[0].iv_.size());
+                //assert(bytes_transferred == context_.engine_[0].iv_wanted_);
+                //context_.engine_[0].iv_wanted_ = 0;
+                //context_.engine_[0].cipher_->set_iv(context_.engine_[0].iv_.data(), context_.engine_[0].iv_.size());
             default:
                 next_layer_.async_read_some(buffers_, std::move(*this));
                 return;
