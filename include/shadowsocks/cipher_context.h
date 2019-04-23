@@ -82,6 +82,15 @@ struct aes_cfb
 {
     CryptoPP::CFB_Mode<CryptoPP::AES>::Encryption enc_;
     CryptoPP::CFB_Mode<CryptoPP::AES>::Decryption dec_;
+    
+    void encryt(uint8_t * out, uint8_t * in, size_t size)
+    {
+        enc_.ProcessData(out, in, size);
+    }
+    
+    void decryt(uint8_t * out, uint8_t * in, size_t size)
+    {
+    }
 };
 
 struct aes_ctr

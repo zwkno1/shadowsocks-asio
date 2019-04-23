@@ -10,7 +10,7 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules ${CMAKE_MODULE_PATH})
 
 find_package(Boost 1.66 COMPONENTS system REQUIRED )
 
-include_directories(${Boost_INCLUDE_DIR} ${CryptoPP_INCLUDE_DIRS})
+include_directories(${Boost_INCLUDE_DIR} ${CryptoPP_INCLUDE_DIRS} ${CryptoPP_INCLUDE_DIRS}/cryptopp)
 
 find_package(Threads)
 
@@ -23,6 +23,8 @@ add_executable(ss-server
 	${HEADER_FILES}
 	src/server.cpp
 	)
+add_dependencies(ss-server CryptoPP)
+
 
 target_link_libraries(ss-server
 	${Boost_LIBRARIES}
