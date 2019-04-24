@@ -1,5 +1,9 @@
 #pragma once
 
+#include <variant>
+#include <unordered_map>
+#include <type_traits>
+
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/secblock.h>
 #include <cryptopp/chacha.h>
@@ -12,6 +16,7 @@
 #include <cryptopp/camellia.h>
 
 #include <shadowsocks/cipher_context.h>
+#include <boost/asio.hpp>
 
 namespace shadowsocks
 {
@@ -31,6 +36,26 @@ struct cipher_info
     cipher_type type_;
     size_t salt_length_; // only for AEAD
     size_t tag_length_; // only for AEAD
+};
+
+enum cipher_metod
+{
+    AES_CFB,
+    AES_CTR,
+    BLOWFISH_CFB,
+    CAMELLIA_CFB,
+    CAST_CFB,
+    CHAHCA20,
+    CHACHA20_IETF,
+    DES_CFB,
+    IDEA_CFB,
+    RC2_CFB,
+    RC4_MD5,
+    SALSA20,
+    SEED_CFB,
+    SERPENT_CFB,
+    CHACHA20_IETF_POLY1305,
+    AES_GCM,
 };
 
 const std::unordered_map<std::string, cipher_info> cipherInfoMap = 
@@ -62,6 +87,42 @@ const std::unordered_map<std::string, cipher_info> cipherInfoMap =
     {"aes-256-gcm", {"AES-256/GCM", 32, 12, AEAD, 32, 16}}
 };
 
+template<typename Context>
+void encryt(Context & ctx, boost::asio::const_buffer in, boost::asio::mutable_buffer out)
+{
+    if(!ctx.iv_.empty())
+    {
+        //CryptoPP::AutoSeededRandomPool{}.GenerateBlock(out.data(), ctx.iv_length_);
+        std::memcpy(out.data(), ctx.iv_.data(), ctx.iv_.size());
+        out += ctx.iv_.size();
+        ctx.iv_.clear();
+    }
+    
+    ctx.cipher_.ProcessData(out.data(), in.data(), in.size());
+    
+}
+
+template<typename T>
+struct is_stream : public std::true_type
+{
+};
+
+class cipher
+{
+    void test()
+    {
+        std::visit([](auto && arg)
+        {
+            if constexpr(is_stream<std::decay<decltype(arg)> >::value)
+            {
+                
+            }
+        }, value_);
+    }
+    
+    std::variant<std::string, int > value_;
+};
+
 struct chacha
 {
     CryptoPP::ChaCha::Encryption enc_;
@@ -78,19 +139,28 @@ struct chacha
     }
 };
 
-struct aes_cfb
+struct aes_cfb_enc
 {
     CryptoPP::CFB_Mode<CryptoPP::AES>::Encryption enc_;
-    CryptoPP::CFB_Mode<CryptoPP::AES>::Decryption dec_;
+    CryptoPP::SecByteBlock key_;
+    size_t iv_length_;
+    bool init_;
+    
+    aes_cfb_enc(const CryptoPP::SecByteBlock & key, size_t iv_length)
+    {
+        
+    }
     
     void encryt(uint8_t * out, uint8_t * in, size_t size)
     {
+        if(!init_)
+        {
+            enc_.SetIV(key_. key_.size());
+            //CryptoPP::AutoSeededRandomPool{}.
+        }
         enc_.ProcessData(out, in, size);
     }
     
-    void decryt(uint8_t * out, uint8_t * in, size_t size)
-    {
-    }
 };
 
 struct aes_ctr
