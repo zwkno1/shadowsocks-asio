@@ -10,10 +10,18 @@
 #include <cryptopp/osrng.h>
 #include <cryptopp/files.h>
 #include <cryptopp/hex.h>
-#include <cryptopp/modes.h>
 #include <cryptopp/aes.h>
 #include <cryptopp/blowfish.h>
 #include <cryptopp/camellia.h>
+#include <cryptopp/chacha.h>
+#include <cryptopp/des.h>
+#include <cryptopp/idea.h>
+#include <cryptopp/rc2.h>
+#include <cryptopp/salsa.h>
+#include <cryptopp/seed.h>
+#include <cryptopp/serpent.h>
+#include <cryptopp/modes.h>
+#include <cryptopp/chachapoly.h>
 
 #include <shadowsocks/cipher_context.h>
 #include <boost/asio.hpp>
@@ -97,8 +105,8 @@ struct Context
     CryptoPP::ChaCha::Encryption cipher_;
 };
 
-//template<typename Context>
-void encryt(CryptoPP::ChaCha::Encryption & enc, bool & init, const CryptoPP::SecByteBlock & key, size_t iv_length, boost::asio::const_buffer & in, boost::asio::mutable_buffer & out)
+template<typename Encryption>
+void encryt(Encryption & enc, bool & init, const CryptoPP::SecByteBlock & key, size_t iv_length, boost::asio::const_buffer & in, boost::asio::mutable_buffer & out)
 {
     if(!init)
     {
@@ -114,7 +122,8 @@ void encryt(CryptoPP::ChaCha::Encryption & enc, bool & init, const CryptoPP::Sec
     in += in.size();
 }
 
-void decryt(CryptoPP::ChaCha::Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, size_t iv_length, boost::asio::const_buffer & in, boost::asio::mutable_buffer & out)
+template<typename Decryption>
+void decryt(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, size_t iv_length, boost::asio::const_buffer & in, boost::asio::mutable_buffer & out)
 {
     if(!init)
     {
@@ -191,6 +200,18 @@ struct camellia_cfb
 {
     CryptoPP::CFB_Mode<CryptoPP::Camellia>::Encryption enc_;
     CryptoPP::CFB_Mode<CryptoPP::Camellia>::Decryption dec_;
+};
+
+struct chacha_poly1305
+{
+    CryptoPP::ChaCha20Poly1305::Encryption enc_;
+    CryptoPP::ChaCha20Poly1305::Decryption dec_;
+    
+    void test()
+    {
+        &CryptoPP::ChaCha20Poly1305::Encryption::EncryptAndAuthenticate;
+    }
+    
 };
 
 
