@@ -155,8 +155,6 @@ struct aes_cfb_enc
     {
         if(!init_)
         {
-            enc_.SetIV(key_. key_.size());
-            //CryptoPP::AutoSeededRandomPool{}.
         }
         enc_.ProcessData(out, in, size);
     }

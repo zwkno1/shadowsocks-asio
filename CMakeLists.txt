@@ -32,3 +32,13 @@ target_link_libraries(ss-server
 	${CMAKE_THREAD_LIBS_INIT}
 	)
 
+add_executable(ss-test
+	${HEADER_FILES}
+	test/test.cpp
+	)
+add_dependencies(ss-test CryptoPP)
+target_link_libraries(ss-test
+	${CryptoPP_LIBRARIES}
+	${CMAKE_THREAD_LIBS_INIT}
+	)
+
