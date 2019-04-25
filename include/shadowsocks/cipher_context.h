@@ -27,26 +27,15 @@ enum cipher_type : uint8_t
     AEAD
 };
 
-struct cipher_info 
-{
-    // internal implementation name in Botan
-    std::string name_;
-    size_t key_length_;
-    size_t iv_length_;
-    cipher_type type_;
-    size_t salt_length_; // only for AEAD
-    size_t tag_length_; // only for AEAD
-};
-
 enum cipher_metod
 {
     AES_CFB,
-    AES_CTR,
+    AES_CTR_BE,
     BLOWFISH_CFB,
     CAMELLIA_CFB,
     CAST_CFB,
-    CHAHCA20,
-    CHACHA20_IETF,
+    CHACHA20,
+    //CHACHA20_IETF,
     DES_CFB,
     IDEA_CFB,
     RC2_CFB,
@@ -54,73 +43,98 @@ enum cipher_metod
     SALSA20,
     SEED_CFB,
     SERPENT_CFB,
-    CHACHA20_IETF_POLY1305,
+    CHACHA20_POLY1305,
     AES_GCM,
+};
+
+
+struct cipher_info 
+{
+    cipher_metod method_;
+    size_t key_length_;
+    size_t iv_length_;
+    cipher_type type_;
+    size_t salt_length_; // only for AEAD
+    size_t tag_length_; // only for AEAD
 };
 
 const std::unordered_map<std::string, cipher_info> cipherInfoMap = 
 {
-    {"aes-128-cfb", {"AES-128/CFB", 16, 16, STREAM}},
-    {"aes-192-cfb", {"AES-192/CFB", 24, 16, STREAM}},
-    {"aes-256-cfb", {"AES-256/CFB", 32, 16, STREAM}},
-    {"aes-128-ctr", {"AES-128/CTR-BE", 16, 16, STREAM}},
-    {"aes-192-ctr", {"AES-192/CTR-BE", 24, 16, STREAM}},
-    {"aes-256-ctr", {"AES-256/CTR-BE", 32, 16, STREAM}},
-    {"bf-cfb", {"Blowfish/CFB", 16, 8, STREAM}},
-    {"camellia-128-cfb", {"Camellia-128/CFB", 16, 16, STREAM}},
-    {"camellia-192-cfb", {"Camellia-192/CFB", 24, 16, STREAM}},
-    {"camellia-256-cfb", {"Camellia-256/CFB", 32, 16, STREAM}},
-    {"cast5-cfb", {"CAST-128/CFB", 16, 8, STREAM}},
-    {"chacha20", {"ChaCha", 32, 8, STREAM}},
-    {"chacha20-ietf", {"ChaCha", 32, 12, STREAM}},
-    {"des-cfb", {"DES/CFB", 8, 8, STREAM}},
-    {"idea-cfb", {"IDEA/CFB", 16, 8, STREAM}},
-    // RC2 is not supported by botan-2
-    {"rc2-cfb", {"RC2/CFB", 16, 8, STREAM}},
-    {"rc4-md5", {"RC4-MD5", 16, 16, STREAM}},
-    {"salsa20", {"Salsa20", 32, 8, STREAM}},
-    {"seed-cfb", {"SEED/CFB", 16, 16, STREAM}},
-    {"serpent-256-cfb", {"Serpent/CFB", 32, 16, STREAM}},
-    {"chacha20-ietf-poly1305", {"ChaCha20Poly1305", 32, 12, AEAD, 32, 16}},
-    {"aes-128-gcm", {"AES-128/GCM", 16, 12, AEAD, 16, 16}},
-    {"aes-192-gcm", {"AES-192/GCM", 24, 12, AEAD, 24, 16}},
-    {"aes-256-gcm", {"AES-256/GCM", 32, 12, AEAD, 32, 16}}
+    {"aes-128-cfb", {AES_CFB, 16, 16, STREAM}},
+    {"aes-192-cfb", {AES_CFB, 24, 16, STREAM}},
+    {"aes-256-cfb", {AES_CFB, 32, 16, STREAM}},
+    {"aes-128-ctr", {AES_CTR_BE, 16, 16, STREAM}},
+    {"aes-192-ctr", {AES_CTR_BE, 24, 16, STREAM}},
+    {"aes-256-ctr", {AES_CTR_BE, 32, 16, STREAM}},
+    {"bf-cfb", {BLOWFISH_CFB, 16, 8, STREAM}},
+    {"camellia-128-cfb", {CAMELLIA_CFB, 16, 16, STREAM}},
+    {"camellia-192-cfb", {CAMELLIA_CFB, 24, 16, STREAM}},
+    {"camellia-256-cfb", {CAMELLIA_CFB, 32, 16, STREAM}},
+    {"cast5-cfb", {CAST_CFB, 16, 8, STREAM}},
+    {"chacha20", {CHACHA20, 32, 8, STREAM}},
+    {"chacha20-ietf", {CHACHA20, 32, 12, STREAM}},
+    {"des-cfb", {DES_CFB, 8, 8, STREAM}},
+    {"idea-cfb", {IDEA_CFB, 16, 8, STREAM}},
+    {"rc2-cfb", {RC2_CFB, 16, 8, STREAM}},
+    {"rc4-md5", {RC4_MD5, 16, 16, STREAM}},
+    {"salsa20", {SALSA20, 32, 8, STREAM}},
+    {"seed-cfb", {SEED_CFB, 16, 16, STREAM}},
+    {"serpent-256-cfb", {SERPENT_CFB, 32, 16, STREAM}},
+    {"chacha20-ietf-poly1305", {CHACHA20_POLY1305, 32, 12, AEAD, 32, 16}},
+    {"aes-128-gcm", {AES_GCM, 16, 12, AEAD, 16, 16}},
+    {"aes-192-gcm", {AES_GCM, 24, 12, AEAD, 24, 16}},
+    {"aes-256-gcm", {AES_GCM, 32, 12, AEAD, 32, 16}}
 };
 
-template<typename Context>
-void encryt(Context & ctx, boost::asio::const_buffer in, boost::asio::mutable_buffer out)
+struct Context
 {
-    if(!ctx.iv_.empty())
+    bool init_;
+    
+    CryptoPP::SecByteBlock key_;
+    
+    size_t iv_length_;
+    
+    CryptoPP::ChaCha::Encryption cipher_;
+};
+
+//template<typename Context>
+void encryt(CryptoPP::ChaCha::Encryption & enc, bool & init, const CryptoPP::SecByteBlock & key, size_t iv_length, boost::asio::const_buffer & in, boost::asio::mutable_buffer & out)
+{
+    if(!init)
     {
-        //CryptoPP::AutoSeededRandomPool{}.GenerateBlock(out.data(), ctx.iv_length_);
-        std::memcpy(out.data(), ctx.iv_.data(), ctx.iv_.size());
-        out += ctx.iv_.size();
-        ctx.iv_.clear();
+        CryptoPP::byte * iv = reinterpret_cast<CryptoPP::byte *>(out.data());
+        CryptoPP::AutoSeededRandomPool{}.GenerateBlock(iv, iv_length);
+        enc.SetKeyWithIV(key, key.size(), iv, iv_length);
+        out += iv_length;
+        init = true;
     }
     
-    ctx.cipher_.ProcessData(out.data(), in.data(), in.size());
+    enc.ProcessData(reinterpret_cast<CryptoPP::byte *>(out.data()), reinterpret_cast<const CryptoPP::byte *>(in.data()), in.size());
+    out += in.size();
+    in += in.size();
+}
+
+void decryt(CryptoPP::ChaCha::Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, size_t iv_length, boost::asio::const_buffer & in, boost::asio::mutable_buffer & out)
+{
+    if(!init)
+    {
+        if(in.size() < iv_length)
+            return;
+        
+        const CryptoPP::byte * iv = reinterpret_cast<const CryptoPP::byte *>(in.data());
+        dec.SetKeyWithIV(key, key.size(), iv, iv_length);
+        in += iv_length;
+        init = true;
+    }
     
+    dec.ProcessData(reinterpret_cast<CryptoPP::byte *>(out.data()), reinterpret_cast<const CryptoPP::byte *>(in.data()), in.size());
+    out += in.size();
+    in += in.size();
 }
 
 template<typename T>
 struct is_stream : public std::true_type
 {
-};
-
-class cipher
-{
-    void test()
-    {
-        std::visit([](auto && arg)
-        {
-            if constexpr(is_stream<std::decay<decltype(arg)> >::value)
-            {
-                
-            }
-        }, value_);
-    }
-    
-    std::variant<std::string, int > value_;
 };
 
 struct chacha
