@@ -22,46 +22,38 @@ public:
     {
     }
 
-	void operator()(boost::system::error_code ec, std::size_t bytes_transferred, int start = 0)
+    void operator()(boost::system::error_code ec, std::size_t bytes, int start = 0)
     {
         for(;;)
         {
             switch (start)
             {
-            case 1:
-                if(context_.engine_[0].iv_wanted_ != 0)
-                {
-                    boost::asio::async_read(next_layer_,
-					    boost::asio::buffer(&*(context_.engine_[0].iv_.end() - context_.engine_[0].iv_wanted_), context_.engine_[0].iv_wanted_),
-                        std::move(*this));
-                    return;
-                }
-                start = 2;
-                continue;
             case 0:
-                if((context_.engine_[0].iv_wanted_ == 0) || ec)
+                if(ec)
                 {
-                    size_t bytes = bytes_transferred;
-                    for(auto iter = boost::asio::buffer_sequence_begin(buffers_); iter != boost::asio::buffer_sequence_end(buffers_); ++iter)
+                    handler_(ec, bytes);
+                }
+                context_.on_read(bytes);
+            case 1:
+                for(auto iter = boost::asio::buffer_sequence_begin(buffers_); iter != boost::asio::buffer_sequence_end(buffers_); ++iter)
+                {
+                    boost::asio::mutable_buffer buffer(*iter);
+                    if (buffer.size() != 0)
                     {
-                        if(bytes == 0)
-                            break;
-                        boost::asio::mutable_buffer buffer(*iter);
-                        if (buffer.size() != 0)
+                        context_.decrypt(buffer, ec, bytes);
+                        if(ec || bytes != 0)
                         {
-							context_.engine_[0].cipher_->cipher1(reinterpret_cast<uint8_t *>(buffer.data()),  std::min(buffer.size(), bytes));
-                            bytes -= std::min(buffer.size(), bytes);
+                            handler_(ec, bytes);
+                            return;
+                        }
+                        else
+                        {
+                            break;
                         }
                     }
-                    handler_(ec, bytes_transferred);
-                    return;
                 }
-                
-                assert(bytes_transferred == context_.engine_[0].iv_wanted_);
-                context_.engine_[0].iv_wanted_ = 0;
-				context_.engine_[0].cipher_->set_iv(context_.engine_[0].iv_.data(), context_.engine_[0].iv_.size());
             default:
-                next_layer_.async_read_some(buffers_, std::move(*this));
+                next_layer_.async_read_some(context_.get_read_buffer(), std::move(*this));
                 return;
             }
         }
@@ -78,7 +70,7 @@ private:
 };
 
 template <typename Stream, typename MutableBufferSequence, typename Handler>
-inline void async_read(Stream& next_layer, cipher_context & ctx, const MutableBufferSequence & buffers, Handler& handler)
+inline void async_read_some(Stream& next_layer, cipher_context & ctx, const MutableBufferSequence & buffers, Handler& handler)
 {
     read_op<Stream, MutableBufferSequence, Handler>{next_layer, ctx, buffers, handler}(boost::system::error_code{}, 0, 1);
 }

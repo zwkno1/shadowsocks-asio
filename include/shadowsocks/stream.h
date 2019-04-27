@@ -51,7 +51,7 @@ public:
       boost::asio::async_completion<WriteHandler,
         void (boost::system::error_code, std::size_t)> init(handler);
 
-      detail::async_write(next_layer_, context_, buffers, init.completion_handler);
+      detail::async_write_some (next_layer_, context_, buffers, init.completion_handler);
 
       return init.result.get();
     }
@@ -69,7 +69,7 @@ public:
       boost::asio::async_completion<ReadHandler,
         void (boost::system::error_code, std::size_t)> init(handler);
 
-      detail::async_read(next_layer_, context_, buffers, init.completion_handler);
+      detail::async_read_some (next_layer_, context_, buffers, init.completion_handler);
 
       return init.result.get();
     }
