@@ -105,42 +105,6 @@ struct Context
     CryptoPP::ChaCha::Encryption cipher_;
 };
 
-template<typename Encryption>
-void encryt(Encryption & enc, bool & init, const CryptoPP::SecByteBlock & key, size_t iv_length, boost::asio::const_buffer & in, boost::asio::mutable_buffer & out)
-{
-    if(!init)
-    {
-        CryptoPP::byte * iv = reinterpret_cast<CryptoPP::byte *>(out.data());
-        CryptoPP::AutoSeededRandomPool{}.GenerateBlock(iv, iv_length);
-        enc.SetKeyWithIV(key, key.size(), iv, iv_length);
-        out += iv_length;
-        init = true;
-    }
-    
-    enc.ProcessData(reinterpret_cast<CryptoPP::byte *>(out.data()), reinterpret_cast<const CryptoPP::byte *>(in.data()), in.size());
-    out += in.size();
-    in += in.size();
-}
-
-template<typename Decryption>
-void decryt(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, size_t iv_length, boost::asio::const_buffer & in, boost::asio::mutable_buffer & out)
-{
-    if(!init)
-    {
-        if(in.size() < iv_length)
-            return;
-        
-        const CryptoPP::byte * iv = reinterpret_cast<const CryptoPP::byte *>(in.data());
-        dec.SetKeyWithIV(key, key.size(), iv, iv_length);
-        in += iv_length;
-        init = true;
-    }
-    
-    dec.ProcessData(reinterpret_cast<CryptoPP::byte *>(out.data()), reinterpret_cast<const CryptoPP::byte *>(in.data()), in.size());
-    out += in.size();
-    in += in.size();
-}
-
 template<typename T>
 struct is_stream : public std::true_type
 {
