@@ -1,7 +1,5 @@
 
-#include <boost/asio.hpp>
-
-#include <shadowsocks/detail/cipher.h>
+#include <stream/detail/cipher.h>
 
 #include <cryptopp/files.h>
 #include <cryptopp/hex.h>
@@ -39,18 +37,20 @@ int main(int argc, char* argv[])
 
     bool enc_init = false;
     ChaCha20Poly1305::Encryption enc;
-    boost::asio::const_buffer in(pt, sizeof(pt));
-    boost::asio::mutable_buffer out(enc_buf, sizeof( enc_buf ));
-    shadowsocks::detail::encryt(enc, enc_init, key, enc_iv, in, out);
-    size_t enc_size = sizeof(enc_buf) - out.size();
+    size_t enc_in_size = sizeof(pt);
+    size_t enc_out_size = 0;
+    shadowsocks::detail::encrypt(enc, enc_init, key, enc_iv, pt, enc_in_size, enc_buf, enc_out_size);
     
     std::cout << "Plain: ";
     StringSource(pt, sizeof(pt), true, new HexEncoder(new FileSink(std::cout)));
     std::cout << "\n" << std::endl;
 
     std::cout << "Cipher: ";
-    StringSource( enc_buf, sizeof( enc_buf ) - out.size(), true, new HexEncoder(new FileSink(std::cout)));
+    StringSource(enc_buf, enc_out_size, true, new HexEncoder(new FileSink(std::cout)));
     std::cout << std::endl;
+    
+    std::cout << "plain size:" << sizeof(pt) << std::endl;
+    std::cout << "encrypt size:" << enc_out_size << ", left: " << sizeof(pt) - enc_in_size << std::endl;
 
     //std::cout << "MAC: ";
     //StringSource(mac, sizeof(mac), true, new HexEncoder(new FileSink(std::cout)));
@@ -61,15 +61,16 @@ int main(int argc, char* argv[])
     ChaCha20Poly1305::Decryption dec;
     CryptoPP::SecByteBlock dec_iv(iv_arr, sizeof(iv_arr));
     byte dec_buf[10240];
-    boost::asio::const_buffer dec_in(enc_buf, enc_size);
-    boost::asio::mutable_buffer dec_out(dec_buf, sizeof(dec_buf));
+    size_t dec_in_size = enc_out_size;
+    size_t dec_out_size = 0;
     
-    bool ret = shadowsocks::detail::decryt(dec, dec_init, key, dec_iv, block_size, dec_in, dec_out);
-    size_t dec_size = sizeof(dec_buf) - dec_out.size();
-    std::cout << "decryt " << (ret ? "success" : "failed") << std::endl;
+    boost::system::error_code ec;
+    shadowsocks::detail::decrypt(dec, dec_init, key, dec_iv, block_size, enc_buf, dec_in_size, dec_buf, dec_out_size, ec);
+    std::cout << "decryt result: " << ec.message() << std::endl;
+    std::cout << "decrypt size:" << dec_out_size << ", left: " << enc_out_size - dec_in_size << std::endl;
 
     std::cout << "Recover: ";
-    StringSource(dec_buf, dec_size, true, new HexEncoder(new FileSink(std::cout)));
+    StringSource(dec_buf, dec_out_size, true, new HexEncoder(new FileSink(std::cout)));
     std::cout << "\n" << std::endl;
 
     return 0;

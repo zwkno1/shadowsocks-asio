@@ -1,7 +1,7 @@
 #pragma once
 
 #include <boost/asio.hpp>
-#include <shadowsocks/cipher_context.h>
+#include <stream/cipher_context.h>
 
 namespace shadowsocks
 {
@@ -20,41 +20,42 @@ public:
 	{
 	}
 
-	void operator()(boost::system::error_code ec, std::size_t bytes_transferred, int start = 0)
+	void operator()(boost::system::error_code ec, std::size_t bytes, int start = 0)
 	{
 		for(;;)
 		{
 			switch (start)
 			{
-			case 1:
-				//if(context_.engine_[1].iv_wanted_ != 0)
-				//{
-				//	boost::asio::async_write(next_layer_,
-				//	                         boost::asio::buffer(context_.engine_[1].iv_),
-				//	        std::move(*this));
-				//	return;
-				//}
-				start = 2;
-				continue;
 			case 0:
-				//if((context_.engine_[1].iv_wanted_ == 0) || ec)
-				//{
-				//	handler_(ec, bytes_transferred);
-				//	return;
-				//}
-				//assert(bytes_transferred == context_.engine_[1].iv_wanted_);
-				//context_.engine_[1].iv_wanted_ = 0;
-				//context_.engine_[1].cipher_->set_iv(context_.engine_[1].iv_.data(), context_.engine_[1].iv_.size());
+                if(ec)
+                {
+                    handler_(ec, bytes);
+                }
+                else
+                {
+                    context_.handle_write();
+                    for(auto iter = boost::asio::buffer_sequence_begin(buffers_); iter != boost::asio::buffer_sequence_end(buffers_); ++iter)
+                    {
+                        boost::asio::const_buffer buffer(*iter);
+                        if (buffer.size() != 0)
+                        {
+                            buffer += bytes_;
+                        }
+                    }
+                }
+                return;
 			default:
 				for(auto iter = boost::asio::buffer_sequence_begin(buffers_); iter != boost::asio::buffer_sequence_end(buffers_); ++iter)
 				{
 					boost::asio::const_buffer buffer(*iter);
 					if (buffer.size() != 0)
 					{
-						//context_.engine_[1].cipher_->cipher1(reinterpret_cast<uint8_t *>(const_cast<void *>((buffer.data()))), buffer.size());
+                        size_t size = buffer.size();
+                        context_.encrypt(reinterpret_cast<const uint8_t *>(buffer.data()), size);
+                        bytes_ = size;
+                        boost::asio::async_write(next_layer_, context_.get_write_buffer(), std::move(*this));
 					}
 				}
-				boost::asio::async_write(next_layer_, buffers_, std::move(*this));
 				return;
 			}
 		}
@@ -68,6 +69,8 @@ private:
 	ConstBufferSequence buffers_;
 
 	Handler handler_;
+    
+    size_t bytes_;
 };
 
 template <typename Stream, typename ConstBufferSequence, typename Handler>

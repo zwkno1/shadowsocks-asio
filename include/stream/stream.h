@@ -2,9 +2,9 @@
 
 #include <boost/asio.hpp>
 
-#include <shadowsocks/cipher_context.h>
-#include <shadowsocks/detail/read_op.h>
-#include <shadowsocks/detail/write_op.h>
+#include <stream/cipher_context.h>
+#include <stream/detail/read_op.h>
+#include <stream/detail/write_op.h>
 
 namespace shadowsocks
 {

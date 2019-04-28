@@ -7,7 +7,7 @@
 
 #include <asio.h>
 
-#include <shadowsocks/stream.h>
+#include <stream/stream.h>
 #include <proto.h>
 #include <tunnel.h>
 

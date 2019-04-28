@@ -2,7 +2,7 @@
 
 #include <boost/asio.hpp>
 
-#include <shadowsocks/cipher_context.h>
+#include <stream/cipher_context.h>
 
 namespace shadowsocks
 {
@@ -22,47 +22,36 @@ public:
     {
     }
 
-	void operator()(boost::system::error_code ec, std::size_t bytes_transferred, int start = 0)
+	void operator()(boost::system::error_code ec, std::size_t bytes, int start = 0)
     {
         for(;;)
         {
             switch (start)
             {
             case 1:
-                //if(context_.engine_[0].iv_wanted_ != 0)
-                //{
-                //    boost::asio::async_read(next_layer_,
-                //        boost::asio::buffer(&*(context_.engine_[0].iv_.end() - context_.engine_[0].iv_wanted_), context_.engine_[0].iv_wanted_),
-                //        std::move(*this));
-                //    return;
-                //}
-                start = 2;
-                continue;
-            case 0:
-                //if((context_.engine_[0].iv_wanted_ == 0) || ec)
+            {
+                boost::asio::mutable_buffer buffer(*boost::asio::buffer_sequence_begin(buffers_));
+                size_t dec_bytes = 0;
+                context_.decrypt(reinterpret_cast<uint8_t *>(buffer.data()), dec_bytes, ec);
+                if(dec_bytes != 0)
                 {
-                    size_t bytes = bytes_transferred;
-                    for(auto iter = boost::asio::buffer_sequence_begin(buffers_); iter != boost::asio::buffer_sequence_end(buffers_); ++iter)
+                    next_layer_.get_io_context().post([h = std::move(handler_), dec_bytes]()
                     {
-                        if(bytes == 0)
-                            break;
-                        boost::asio::mutable_buffer buffer(*iter);
-                        if (buffer.size() != 0)
-                        {
-                            //context_.engine_[0].cipher_->cipher1(reinterpret_cast<uint8_t *>(buffer.data()),  std::min(buffer.size(), bytes));
-                            bytes -= std::min(buffer.size(), bytes);
-                        }
-                    }
-                    handler_(ec, bytes_transferred);
+                        h(boost::system::error_code{}, dec_bytes);
+                    });
                     return;
                 }
-                
-                //assert(bytes_transferred == context_.engine_[0].iv_wanted_);
-                //context_.engine_[0].iv_wanted_ = 0;
-                //context_.engine_[0].cipher_->set_iv(context_.engine_[0].iv_.data(), context_.engine_[0].iv_.size());
-            default:
-                next_layer_.async_read_some(buffers_, std::move(*this));
+                next_layer_.async_read_some(context_.get_read_buffer(), std::move(*this));
+            }
                 return;
+            case 0:
+                if(ec)
+                {
+                    handler_(ec, 0);
+                }
+                context_.handle_read(bytes);
+                start = 1;
+                break;
             }
         }
     }
