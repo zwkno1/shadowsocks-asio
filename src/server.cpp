@@ -1,7 +1,7 @@
 #include <tcp_listener.h>
 #include <server_session.h>
 #include <client_session.h>
-
+#include <spdlog/spdlog.h>
 
 //#include <botan/md5.h>
 //
@@ -20,6 +20,8 @@
 
 int main(int argc, char *argv[])
 {
+    spdlog::set_pattern("[%l] %v");
+    spdlog::set_level(spdlog::level::debug);
     boost::asio::io_context context;
 
     std::string algo = "ChaCha(20)";
@@ -27,8 +29,8 @@ int main(int argc, char *argv[])
 
     shadowsocks::tcp_listener<std::function<void(boost::asio::ip::tcp::socket &&)>> listener(context, [&algo, &key](boost::asio::ip::tcp::socket && s)
     {
-          std::cout << "session count: " << shadowsocks::server_session::count() << std::endl;
-          make_shared<shadowsocks::server_session>(std::move(s), shadowsocks::cipher_context{algo, key, 8})->start();
+        spdlog::debug("session count: {}", shadowsocks::server_session::count());
+        make_shared<shadowsocks::server_session>(std::move(s), shadowsocks::cipher_context{algo, key, 8})->start();
     });
 
     listener.start(boost::asio::ip::tcp::endpoint{boost::asio::ip::make_address("0.0.0.0"), 33333});

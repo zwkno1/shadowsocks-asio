@@ -14,7 +14,7 @@ include_directories(${Boost_INCLUDE_DIR} ${CryptoPP_INCLUDE_DIRS} ${CryptoPP_INC
 
 find_package(Threads)
 
-include_directories(./include)
+include_directories(./include ./third_party/spdlog/include)
 
 file(GLOB_RECURSE HEADER_FILES "./include/*.h ./include/detail/*.h")
 add_custom_target(headers SOURCES ${HEADER_FILES})

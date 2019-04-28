@@ -17,11 +17,14 @@ namespace shadowsocks
 class server_session : public enable_shared_from_this<server_session>
 {
 public:
-    server_session(tcp::socket && socket, cipher_context && cc)
+    server_session(tcp::socket && socket, cipher_context && cc, size_t keepalive_seconds = 0)
         : local_(std::move(socket), std::move(cc))
         , remote_(socket.get_io_context())
         , resolver_(socket.get_io_service())
         , rlen_(0)
+        , timer_(socket.get_io_context())
+        , active_(chrono::steady_clock::now())
+        , keepalive_seconds_(keepalive_seconds)
     {
         ++count();
     }
@@ -34,6 +37,11 @@ public:
     void start()
     {
         (*this)();
+        
+        if(keepalive_seconds_ != 0)
+        {
+            start_timer();
+        }
     }
 
     static size_t & count()
@@ -43,6 +51,23 @@ public:
     }
 
 private:
+    void start_timer()
+    {
+        timer_.expires_from_now(chrono::seconds(keepalive_seconds_));
+        timer_.async_wait([this, self = shared_from_this()](error_code ec)
+        {
+            if(chrono::duration_cast<chrono::seconds>(chrono::steady_clock::now() - active_).count() > keepalive_seconds_)
+            {
+                error_code ec;
+                local_.next_layer().shutdown(asio::socket_base::shutdown_both, ec);
+                remote_.shutdown(asio::socket_base::shutdown_both, ec);
+            }
+            else
+            {
+                start_timer();
+            }
+        });
+    }
     void operator()(error_code ec = error_code{}, size_t bytes = 0, int start = 0)
     {
         if(ec)
@@ -117,14 +142,14 @@ private:
                 }
             default:
             {
-                (tunnel_ = make_shared<tunnel_type>(local_, remote_, rbuf_, wbuf_, shared_from_this())).lock()->start(rlen_);
+                (tunnel_ = make_shared<tunnel_type>(local_, remote_, rbuf_, wbuf_, [this, self = shared_from_this()](){ active_ = chrono::steady_clock::now(); })).lock()->start(rlen_);
             }
                 return;
             }
         }
     }
-
-    typedef tunnel<stream<tcp::socket>, tcp::socket, std::array<uint8_t, 40960>, shared_ptr<server_session> > tunnel_type;
+    
+    typedef tunnel<stream<tcp::socket>, tcp::socket, std::array<uint8_t, 40960>, std::function<void()> > tunnel_type;
 
     stream<tcp::socket> local_;
 
@@ -140,6 +165,12 @@ private:
 
     std::array<uint8_t, 40960> rbuf_;
     std::array<uint8_t, 40960> wbuf_;
+    
+    asio::steady_timer timer_;
+    
+    chrono::steady_clock::time_point active_;
+    
+    size_t keepalive_seconds_;
 
 };
 
