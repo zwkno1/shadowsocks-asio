@@ -17,16 +17,16 @@ public:
         , buf2_(buf2)
         , handler_(std::forward<Handler>(h))
     {
-        error_code ignored_ec;
-        auto const & ep = s1_.next_layer().remote_endpoint(ignored_ec);
-        auto const & ep2 = s2_.local_endpoint(ignored_ec);
-        name_ = ep.address().to_string() + ":" + std::to_string(ep.port()) + " -> " + 
-        ep2.address().to_string() + ":" + std::to_string(ep2.port());
+        //error_code ignored_ec;
+        //auto const & ep = s1_.next_layer().remote_endpoint(ignored_ec);
+        //auto const & ep2 = s2_.local_endpoint(ignored_ec);
+        //name_ = ep.address().to_string() + ":" + std::to_string(ep.port()) + " -> " + 
+        //ep2.address().to_string() + ":" + std::to_string(ep2.port());
     }
 
     void start(size_t buf1_size = 0, size_t buf2_size = 0)
     {
-        spdlog::debug("start tunnel {} , {} -> {}", name_, buf1_size, buf2_size);
+        //spdlog::debug("start tunnel {} , {} -> {}", name_, buf1_size, buf2_size);
         if(buf1_size == 0)
         {
             handle_write_s2(error_code{}, 0);
@@ -48,7 +48,7 @@ public:
 
     void handle_read_s1(error_code ec, size_t bytes)
     {
-        spdlog::debug("handle_read_s1 {}, ec: {} , bytes: {}", name_, ec.message(), bytes);
+        //spdlog::debug("handle_read_s1 {}, ec: {} , bytes: {}", name_, ec.message(), bytes);
         if(ec)
         {
             return;
@@ -64,7 +64,7 @@ public:
 
     void handle_write_s2(error_code ec, size_t bytes)
     {
-        spdlog::debug("handle_write_s2 {}, ec: {} , bytes: {}", name_, ec.message(), bytes);
+        //spdlog::debug("handle_write_s2 {}, ec: {} , bytes: {}", name_, ec.message(), bytes);
         if(ec)
         {
             return;
@@ -80,7 +80,7 @@ public:
 
     void handle_read_s2(error_code ec, size_t bytes)
     {
-        spdlog::debug("handle_read_s2 {}, ec: {} , bytes: {}", name_, ec.message(), bytes);
+        //spdlog::debug("handle_read_s2 {}, ec: {} , bytes: {}", name_, ec.message(), bytes);
         if(ec)
         {
             return;
@@ -96,7 +96,7 @@ public:
 
     void handle_write_s1(error_code ec, size_t bytes)
     {
-        spdlog::debug("handle_write_s1 {}, ec: {} , bytes: {}", name_, ec.message(), bytes);
+        //spdlog::debug("handle_write_s1 {}, ec: {} , bytes: {}", name_, ec.message(), bytes);
         if(ec)
         {
             return;

@@ -12,7 +12,7 @@ enum cipher_errors
 {
     cipher_algo_not_found = 1,
     cipher_need_more,
-    cipher_aead_block_too_long,
+    cipher_aead_invalid_block_size,
     cipher_aead_decrypt_verify_failed,
     cipher_buf_too_short,
 };
@@ -36,7 +36,7 @@ public:
           return "Cipher algo not found";
       if(value == cipher_need_more)
           return "Cipher need more";
-      if(value == cipher_aead_block_too_long)
+      if(value == cipher_aead_invalid_block_size)
           return "Cipher aread block too long";
       if(value == cipher_aead_decrypt_verify_failed)
           return "Cipher aead decrypt verify failed";

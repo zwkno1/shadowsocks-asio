@@ -1,6 +1,7 @@
 #pragma once
 
 #include <boost/asio.hpp>
+
 #include <stream/cipher_context.h>
 
 namespace shadowsocks

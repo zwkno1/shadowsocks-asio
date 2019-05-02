@@ -1,7 +1,6 @@
 #pragma once
 
 #include <boost/asio.hpp>
-#include <spdlog/spdlog.h>
 
 #include <stream/cipher_context.h>
 
@@ -46,12 +45,10 @@ public:
                     return;
                 }
                 
-                spdlog::debug("decrypt result: {}", ec.message());
                 size_t dec_bytes = 0;
                 context_.decrypt(reinterpret_cast<uint8_t *>(buffer.data()), dec_bytes, ec);
                 if(dec_bytes != 0)
                 {
-                    spdlog::debug("decrypt {} bytes: {}", dec_bytes, std::string((const char *)buffer.data(), dec_bytes));
                     next_layer_.get_io_context().post([h = std::move(handler_), dec_bytes]()
                     {
                         h(boost::system::error_code{}, dec_bytes);
@@ -59,12 +56,10 @@ public:
                     return;
                 }
                 
-                spdlog::debug("start read: {}", context_.get_read_buffer().size());
                 next_layer_.async_read_some(context_.get_read_buffer(), std::move(*this));
             }
                 return;
             case 0:
-                spdlog::debug("handle read: {}, {}", ec.message(), bytes);
                 if(ec)
                 {
                     handler_(ec, 0);

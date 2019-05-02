@@ -1,13 +1,14 @@
 #pragma once
 
 #include <variant>
-#include <unordered_map>
 #include <type_traits>
+
+#include <boost/asio.hpp>
+
+#include <spdlog/spdlog.h>
 
 #include <stream/detail/cipher.h>
 #include <stream/error.h>
-#include <boost/asio.hpp>
-#include <spdlog/spdlog.h>
 
 namespace shadowsocks
 {
@@ -47,8 +48,6 @@ struct cipher_info
     size_t tag_length_; // only for AEAD
 };
 
-
-
 namespace detail
 {
     
@@ -58,23 +57,13 @@ struct cipher_pair
     typedef typename T::Encryption encryption_type;
     typedef typename T::Decryption decryption_type;
     
-    cipher_pair()
-    {
-        std::cout << "cipher_pair" << std::endl;
-    }
-    
-    ~cipher_pair()
-    {
-        std::cout << "~cipher_pair" << std::endl;
-    }
-    
     encryption_type encryption;
     
     decryption_type decryption;
 };
 
 template<typename T>
-struct cipher_pair_type_traits : public std::integral_constant<cipher_type, ((std::is_same<std::decay_t<T>, cipher_pair<CryptoPP::ChaCha20Poly1305>>::value || std::is_same<std::decay_t<T>, CryptoPP::GCM<CryptoPP::AES>>::value) ? AEAD : STREAM)>
+struct cipher_pair_type_traits : public std::integral_constant<cipher_type, ((std::is_same<std::decay_t<T>, cipher_pair<CryptoPP::ChaCha20Poly1305>>::value || std::is_same<std::decay_t<T>, cipher_pair<CryptoPP::GCM<CryptoPP::AES>>>::value) ? AEAD : STREAM)>
 {
 };
 
@@ -96,10 +85,9 @@ typedef std::variant<
     cipher_pair<CryptoPP::ChaCha20Poly1305>,
     cipher_pair<CryptoPP::GCM<CryptoPP::AES>>
     > cipher_pair_variant;
-    
-cipher_pair_variant make_cipher_pair(cipher_metod m)
+
+void make_cipher_pair(cipher_metod m, cipher_pair_variant & v)
 {
-    cipher_pair_variant v;
     switch(m)
     {
         case AES_CFB:
@@ -149,7 +137,6 @@ cipher_pair_variant make_cipher_pair(cipher_metod m)
         default:
             throw shadowsocks::error::make_error_code(shadowsocks::error::cipher_algo_not_found);
     }
-    return v;
 }
 
 }
@@ -161,7 +148,7 @@ public:
         : info_(info)
         , key_(key.data(), key.size())
     {
-        cipher_ = detail::make_cipher_pair(info.method_);
+        make_cipher_pair(info.method_, cipher_);
         
         enc_iv_.Assign(info.iv_length_, 0);
         dec_iv_.Assign(info.iv_length_, 0);
@@ -204,9 +191,9 @@ public:
     
     void decrypt(uint8_t *out, size_t & out_size, boost::system::error_code & ec)
     {
+        //spdlog::debug("decrypt {}", read_buf_size_);
         std::visit([&](auto&& arg)
         {
-            spdlog::debug("decrypt begin, read buf size: {}", read_buf_size_);
             size_t read_buf_size = read_buf_size_;
             if constexpr(detail::cipher_pair_type_traits<decltype(arg)>::value == STREAM)
             {
@@ -214,10 +201,10 @@ public:
             }
             else
             {
-                detail::decrypt(arg.decryption, dec_init_, key_, dec_iv_, dec_size_, read_buf_.data(), read_buf_size, out, out_size, ec);
+                detail::decrypt(arg.decryption, dec_init_, key_, dec_iv_, dec_block_size_, read_buf_.data(), read_buf_size, out, out_size, ec);
             }
+            //spdlog::debug("decrypt {}, ec: {}", read_buf_size, ec.message());
             read_buf_size_ -= read_buf_size;
-            spdlog::debug("decrypt end, read buf size: {}", read_buf_size_);
             
             if((read_buf_size != 0) && (read_buf_size_ != 0))
             {
@@ -238,7 +225,7 @@ private:
     
     bool dec_init_ = false;
     CryptoPP::SecByteBlock dec_iv_;
-    size_t dec_size_ = 0;
+    size_t dec_block_size_ = 0;
     
     std::array<uint8_t, max_cipher_block_size + 1024> write_buf_;
     size_t write_buf_size_ = 0;

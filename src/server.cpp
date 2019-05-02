@@ -60,8 +60,7 @@ int main(int argc, char *argv[])
 {
     spdlog::set_pattern("[%l] %v");
     spdlog::set_level(spdlog::level::debug);
-    spdlog::debug(" aes keylen: {}, ivlen: {} ", CryptoPP::AES::DEFAULT_KEYLENGTH, CryptoPP::AES::BLOCKSIZE);
-    boost::asio::io_context context;
+    
     const shadowsocks::cipher_info * info = &shadowsocks::cipher_infos.find("chacha20")->second;
     if(argc > 1)
     {
@@ -72,14 +71,15 @@ int main(int argc, char *argv[])
         }
     }
     std::vector<uint8_t> key = evpBytesToKey(*info, "123456");
-    spdlog::info("cipher: {}, key len: {}, iv len: {}", (argc > 1 ? argv[1] : "chacha20"), info->key_length_, info->iv_length_);
+    spdlog::info("cipher: {}, type: {}, key len: {}, iv len: {}", (argc > 1 ? argv[1] : "chacha20"), info->method_, info->key_length_, info->iv_length_);
 
+    boost::asio::io_context context;
+    
     shadowsocks::tcp_listener<std::function<void(boost::asio::ip::tcp::socket &&)>> listener(context, [info, &key](boost::asio::ip::tcp::socket && s)
     {
         spdlog::debug("session count: {}", shadowsocks::server_session::count());
         make_shared<shadowsocks::server_session>(std::move(s), std::make_unique<shadowsocks::cipher_context>(*info, key))->start();
     });
-
     listener.start(boost::asio::ip::tcp::endpoint{boost::asio::ip::make_address("0.0.0.0"), 33333});
 
     try 
