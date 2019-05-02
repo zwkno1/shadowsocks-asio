@@ -25,10 +25,17 @@
 #include <cryptopp/gcm.h>
 #include <cryptopp/chachapoly.h>
 
+#include <spdlog/spdlog.h>
 #include <stream/error.h>
 
 namespace shadowsocks
 {
+    
+enum 
+{
+    max_cipher_block_size = 0x3fff,
+};
+
 namespace detail
 {
         
@@ -56,9 +63,9 @@ void encrypt(Encryption & enc, bool & init, const CryptoPP::SecByteBlock & key, 
         out_size += iv_length;
     }
     
-    if(in_size > 0x3ff)
+    if(in_size > max_cipher_block_size)
     {
-        in_size = 0x3ff;
+        in_size = max_cipher_block_size;
     }
     
     enc.ProcessData(reinterpret_cast<CryptoPP::byte *>(out + out_size),
@@ -112,9 +119,9 @@ void encrypt(Encryption & enc, bool & init, const CryptoPP::SecByteBlock & key, 
         out_size += salt_length;
     }
     
-    if(in_size > 0x3ff)
+    if(in_size > max_cipher_block_size)
     {
-        in_size = 0x3ff;
+        in_size = max_cipher_block_size;
     }
     
     std::array<CryptoPP::byte, 2> block_size = 
@@ -144,13 +151,13 @@ void decrypt(CryptoPP::ChaCha20Poly1305::Decryption & dec, bool & init, const Cr
     const size_t tag_length = 16;
     const size_t salt_length = key.size();
     
+    size_t total_size = in_size;
+    in_size = 0;
     out_size = 0;
-    size_t offset = 0;
     if(!init)
     {
-        if(in_size < salt_length)
+        if(total_size < salt_length)
         {
-            in_size = 0;
             ec = make_error_code(::shadowsocks::error::cipher_need_more);
             return;
         }
@@ -162,57 +169,72 @@ void decrypt(CryptoPP::ChaCha20Poly1305::Decryption & dec, bool & init, const Cr
             reinterpret_cast<const CryptoPP::byte *>("ss-subkey"), 9);
         dec.SetKeyWithIV(skey, skey.size(), iv, iv.size());
         init = true;
-        offset += salt_length;
+        in_size += salt_length;
+        spdlog::debug("decrypt init, salt length: ", salt_length);
     }
     
     for(;;)
     {
         if(size == 0)
         {
-            if(in_size - offset < 2 + tag_length)
+            if(total_size - in_size < 2 + tag_length)
             {
                 ec = make_error_code(::shadowsocks::error::cipher_need_more);
+                spdlog::debug("decrypt size need more, data size: {} ", 2+ tag_length);
                 return;
             }
             
             std::array<CryptoPP::byte, 2> block_size; 
-            dec.DecryptAndVerify(block_size.data(), 
-                reinterpret_cast<const CryptoPP::byte *>(in) + offset + 2,
+            bool result = dec.DecryptAndVerify(block_size.data(), 
+                reinterpret_cast<const CryptoPP::byte *>(in) + in_size + 2,
                 tag_length, iv, iv.size(), nullptr, 0,
-                reinterpret_cast<const CryptoPP::byte *>(in) + offset,
+                reinterpret_cast<const CryptoPP::byte *>(in) + in_size,
                 2);
             increase_iv(iv);
+            
+            in_size += 2 + tag_length;
             size = (block_size[0] << 8) | block_size[1];
-            if(size > 0x03ff)
-            {
-                ec = make_error_code(::shadowsocks::error::cipher_aead_block_too_long );
-                return;
-            }
-            offset += 2 + tag_length;
-        }
-        else
-        {
-            if(in_size - offset < size + tag_length)
-            {
-                ec = make_error_code(::shadowsocks::error::cipher_need_more);
-                return;
-            }
-            bool result = dec.DecryptAndVerify(
-                reinterpret_cast<CryptoPP::byte *>(out),
-                reinterpret_cast<const CryptoPP::byte *>(in) + offset + size,
-                tag_length, iv, iv.size(), nullptr, 0,
-                reinterpret_cast<const CryptoPP::byte *>(in) + offset,
-                size);
+            spdlog::debug("decrypt size: {}", size);
             
             if(!result)
             {
+                spdlog::debug("decrypt verify size: {}", size);
                 ec = make_error_code(::shadowsocks::error::cipher_aead_decrypt_verify_failed);
                 return;
             }
             
-            offset += size + tag_length;
+            if(size > max_cipher_block_size)
+            {
+                ec = make_error_code(::shadowsocks::error::cipher_aead_block_too_long);
+                return;
+            }
+        }
+        else
+        {
+            if(total_size - in_size < size + tag_length)
+            {
+                ec = make_error_code(::shadowsocks::error::cipher_need_more);
+                spdlog::debug("decrypt data need more, data size: {} ", size + tag_length);
+                return;
+            }
+            bool result = dec.DecryptAndVerify(
+                reinterpret_cast<CryptoPP::byte *>(out),
+                reinterpret_cast<const CryptoPP::byte *>(in) + in_size + size,
+                tag_length, iv, iv.size(), nullptr, 0,
+                reinterpret_cast<const CryptoPP::byte *>(in) + in_size,
+                size);
+            increase_iv(iv);
+            spdlog::debug("decrypt data, size: {}, result: {}", size, result);
+            in_size += size + tag_length;
             out_size += size;
             size = 0;
+            
+            if(!result)
+            {
+                spdlog::debug("decrypt verify data: {}", size);
+                ec = make_error_code(::shadowsocks::error::cipher_aead_decrypt_verify_failed);
+            }
+            return;
         }
     }
 }

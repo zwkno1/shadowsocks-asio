@@ -17,49 +17,33 @@ public:
 	    , context_(ctx)
 	    , buffers_(buffers)
 	    , handler_(std::move(h))
+        , bytes_(0)
 	{
 	}
 
 	void operator()(boost::system::error_code ec, std::size_t bytes, int start = 0)
 	{
-		for(;;)
-		{
-			switch (start)
-			{
-			case 0:
-                if(ec)
-                {
-                    handler_(ec, bytes);
-                }
-                else
+        for(;;)
+        {
+            switch (start)
+            {
+            case 0:
+                if(!ec)
                 {
                     context_.handle_write();
-                    for(auto iter = boost::asio::buffer_sequence_begin(buffers_); iter != boost::asio::buffer_sequence_end(buffers_); ++iter)
-                    {
-                        boost::asio::const_buffer buffer(*iter);
-                        if (buffer.size() != 0)
-                        {
-                            buffer += bytes_;
-                        }
-                    }
                 }
+                handler_(ec, bytes_);
                 return;
-			default:
-				for(auto iter = boost::asio::buffer_sequence_begin(buffers_); iter != boost::asio::buffer_sequence_end(buffers_); ++iter)
-				{
-					boost::asio::const_buffer buffer(*iter);
-					if (buffer.size() != 0)
-					{
-                        size_t size = buffer.size();
-                        context_.encrypt(reinterpret_cast<const uint8_t *>(buffer.data()), size);
-                        bytes_ = size;
-                        boost::asio::async_write(next_layer_, context_.get_write_buffer(), std::move(*this));
-					}
-				}
-				return;
-			}
-		}
-	}
+            default:
+                boost::asio::const_buffer buffer(*boost::asio::buffer_sequence_begin(buffers_));
+                size_t size = buffer.size();
+                context_.encrypt(reinterpret_cast<const uint8_t *>(buffer.data()), size);
+                bytes_ = size;
+                boost::asio::async_write(next_layer_, context_.get_write_buffer(), std::move(*this));
+            }
+            return;
+        }
+    }
 
 private:
 	Stream & next_layer_;

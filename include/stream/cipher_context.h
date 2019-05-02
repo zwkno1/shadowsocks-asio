@@ -5,7 +5,9 @@
 #include <type_traits>
 
 #include <stream/detail/cipher.h>
+#include <stream/error.h>
 #include <boost/asio.hpp>
+#include <spdlog/spdlog.h>
 
 namespace shadowsocks
 {
@@ -62,7 +64,7 @@ struct cipher_pair
 };
 
 template<typename T>
-struct cipher_pair_type_traits : public std::integral_constant<cipher_type, (std::is_same<T, cipher_pair<CryptoPP::ChaCha20Poly1305>>::value || std::is_same<T, CryptoPP::GCM<CryptoPP::AES>>::value ? AEAD : STREAM)>
+struct cipher_pair_type_traits : public std::integral_constant<cipher_type, ((std::is_same<std::decay_t<T>, cipher_pair<CryptoPP::ChaCha20Poly1305>>::value || std::is_same<std::decay_t<T>, CryptoPP::GCM<CryptoPP::AES>>::value) ? AEAD : STREAM)>
 {
 };
 
@@ -113,12 +115,14 @@ cipher_pair_variant make_cipher_pair(cipher_metod m)
             return cipher_pair<CryptoPP::Salsa20>{};
         case SEED_CFB:
             return cipher_pair<CryptoPP::CFB_Mode<CryptoPP::SEED>>{};
-        case CHACHA20_POLY1305:
-            return cipher_pair<CryptoPP::CFB_Mode<CryptoPP::Serpent>>{};
         case SERPENT_CFB:
+            return cipher_pair<CryptoPP::CFB_Mode<CryptoPP::Serpent>>{};
+        case CHACHA20_POLY1305:
             return cipher_pair<CryptoPP::ChaCha20Poly1305>{};
         case AES_GCM:
             return cipher_pair<CryptoPP::GCM<CryptoPP::AES>>{};
+        default:
+            throw shadowsocks::error::make_error_code(shadowsocks::error::cipher_algo_not_found);
     }
 }
 
@@ -132,6 +136,9 @@ public:
         , key_(key.data(), key.size())
     {
         cipher_ = detail::make_cipher_pair(info.method_);
+        
+        enc_iv_.Assign(info.iv_length_, 0);
+        dec_iv_.Assign(info.iv_length_, 0);
     }
     
     boost::asio::mutable_buffer get_read_buffer()
@@ -160,11 +167,11 @@ public:
         {
             if constexpr(detail::cipher_pair_type_traits<decltype(arg)>::value == STREAM)
             {
-                detail::encrypt(arg.encryption, enc_ctx_.init, key_, info_.iv_length_, in, in_size, write_buf_.data(), write_buf_size_ );
+                detail::encrypt(arg.encryption, enc_init_, key_, info_.iv_length_, in, in_size, write_buf_.data(), write_buf_size_ );
             }
             else
             {
-                detail::encrypt(arg.encryption, enc_ctx_.init, key_, enc_ctx_.iv, info_.iv_length_, in, in_size, write_buf_.data(), write_buf_size_ );
+                detail::encrypt(arg.encryption, enc_init_, key_, enc_iv_, in, in_size, write_buf_.data(), write_buf_size_ );
             }
         }, cipher_);
     }
@@ -173,20 +180,22 @@ public:
     {
         std::visit([&](auto&& arg)
         {
+            spdlog::debug("decrypt begin, read buf size: {}", read_buf_size_);
             size_t read_buf_size = read_buf_size_;
             if constexpr(detail::cipher_pair_type_traits<decltype(arg)>::value == STREAM)
             {
-                detail::decrypt(arg.decryption, dec_ctx_.init, key_, info_.iv_length_, read_buf_.data(), read_buf_size, out, out_size);
+                detail::decrypt(arg.decryption, dec_init_, key_, info_.iv_length_, read_buf_.data(), read_buf_size, out, out_size);
             }
             else
             {
-                detail::decrypt(arg.decryption, dec_ctx_.init, key_, dec_ctx_.iv, dec_size_, read_buf_.data(), read_buf_size, out, out_size, ec);
+                detail::decrypt(arg.decryption, dec_init_, key_, dec_iv_, dec_size_, read_buf_.data(), read_buf_size, out, out_size, ec);
             }
             read_buf_size_ -= read_buf_size;
+            spdlog::debug("decrypt end, read buf size: {}", read_buf_size_);
             
             if((read_buf_size != 0) && (read_buf_size_ != 0))
             {
-                std::memcpy(read_buf_.data(), read_buf_.data() + read_buf_size, read_buf_size_);
+                std::memmove(read_buf_.data(), read_buf_.data() + read_buf_size, read_buf_size_);
             }
         }, cipher_);
     }
@@ -198,20 +207,17 @@ private:
     
     CryptoPP::SecByteBlock key_;
     
-    struct context
-    {
-        bool init;
-        CryptoPP::SecByteBlock iv;
-    };
+    bool enc_init_ = false;
+    CryptoPP::SecByteBlock enc_iv_;
     
-    context enc_ctx_;
-    context dec_ctx_;
-    size_t dec_size_;
+    bool dec_init_ = false;
+    CryptoPP::SecByteBlock dec_iv_;
+    size_t dec_size_ = 0;
     
-    std::array<uint8_t, 0x4ff> write_buf_;
-    size_t write_buf_size_;
-    std::array<uint8_t, 0x4ff> read_buf_;
-    size_t read_buf_size_;
+    std::array<uint8_t, max_cipher_block_size + 1024> write_buf_;
+    size_t write_buf_size_ = 0;
+    std::array<uint8_t, max_cipher_block_size + 1024> read_buf_;
+    size_t read_buf_size_ = 0;
 };
 
 }

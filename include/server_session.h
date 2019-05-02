@@ -95,7 +95,7 @@ private:
                     rlen_ -= request_len;
                     if(rlen_ != 0)
                     {
-                        std::memcpy(rbuf_.data(), rbuf_.data()+request_len, rlen_);
+                        std::memmove(rbuf_.data(), rbuf_.data()+request_len, rlen_);
                     }
 
                     switch (request_.type())
@@ -149,7 +149,8 @@ private:
         }
     }
     
-    typedef tunnel<stream<tcp::socket>, tcp::socket, std::array<uint8_t, 40960>, std::function<void()> > tunnel_type;
+    typedef std::array<uint8_t, shadowsocks::max_cipher_block_size + 1024> buffer_type;
+    typedef tunnel<stream<tcp::socket>, tcp::socket, buffer_type, std::function<void()> > tunnel_type;
 
     stream<tcp::socket> local_;
 
@@ -163,8 +164,8 @@ private:
 
     size_t rlen_;
 
-    std::array<uint8_t, 40960> rbuf_;
-    std::array<uint8_t, 40960> wbuf_;
+    buffer_type rbuf_;
+    buffer_type wbuf_;
     
     asio::steady_timer timer_;
     

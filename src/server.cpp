@@ -1,6 +1,7 @@
 #include <tcp_listener.h>
 #include <server_session.h>
 #include <spdlog/spdlog.h>
+#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
 #include <cryptopp/md5.h>
 
 namespace shadowsocks
@@ -80,7 +81,14 @@ int main(int argc, char *argv[])
 
     listener.start(boost::asio::ip::tcp::endpoint{boost::asio::ip::make_address("0.0.0.0"), 33333});
 
-    context.run();
+    try 
+    {
+        context.run();
+    }
+    catch(const CryptoPP::Exception & e)
+    {
+        spdlog::debug("error: {}", e.what());
+    }
 
 
     return 0;

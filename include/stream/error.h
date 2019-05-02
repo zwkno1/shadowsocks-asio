@@ -14,6 +14,7 @@ enum cipher_errors
     cipher_need_more,
     cipher_aead_block_too_long,
     cipher_aead_decrypt_verify_failed,
+    cipher_buf_too_short,
 };
 
 namespace detail
