@@ -1,7 +1,5 @@
 #pragma once
 
-#include <iostream>
-
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/secblock.h>
 #include <cryptopp/chacha.h>
@@ -27,6 +25,7 @@
 
 #include <spdlog/spdlog.h>
 #include <stream/error.h>
+#include <typeinfo>
 
 namespace shadowsocks
 {
@@ -77,6 +76,7 @@ void encrypt(Encryption & enc, bool & init, const CryptoPP::SecByteBlock & key, 
 template<typename Decryption>
 void decrypt(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, size_t iv_length, const uint8_t * in, size_t & in_size, uint8_t * out, size_t & out_size)
 {
+    spdlog::debug("{}", typeid(dec).name());
     out_size = 0;
     size_t offset = 0;
     if(!init)
@@ -87,8 +87,18 @@ void decrypt(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, 
             return;
         }
         
+        spdlog::debug("{}, {}, {}, {}", key.size(), iv_length, in_size, out_size);
         const CryptoPP::byte * iv = reinterpret_cast<const CryptoPP::byte *>(in);
-        dec.SetKeyWithIV(key, key.size(), iv, iv_length);
+        for(size_t i = 0; i < key.size(); ++i)
+        {
+            spdlog::debug("{}", (int)key[i]);
+        }
+        for(size_t i = 0; i < iv_length; ++i)
+        {
+            spdlog::debug("{}", (int)iv[i]);
+        }
+        dec.SetKeyWithIV(key.data(), key.size(), iv, iv_length);
+        spdlog::debug("set key ok");
         init = true;
         offset += iv_length;
     }
@@ -146,7 +156,8 @@ void encrypt(Encryption & enc, bool & init, const CryptoPP::SecByteBlock & key, 
     out_size += in_size + tag_length;
 }
 
-void decrypt(CryptoPP::ChaCha20Poly1305::Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, CryptoPP::SecByteBlock & iv, size_t & size, const uint8_t *in, size_t & in_size, uint8_t * out, size_t & out_size, boost::system::error_code & ec)
+template<typename Decryption>
+void decrypt(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, CryptoPP::SecByteBlock & iv, size_t & size, const uint8_t *in, size_t & in_size, uint8_t * out, size_t & out_size, boost::system::error_code & ec)
 {
     const size_t tag_length = 16;
     const size_t salt_length = key.size();

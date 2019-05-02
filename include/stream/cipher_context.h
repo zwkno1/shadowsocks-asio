@@ -58,6 +58,16 @@ struct cipher_pair
     typedef typename T::Encryption encryption_type;
     typedef typename T::Decryption decryption_type;
     
+    cipher_pair()
+    {
+        std::cout << "cipher_pair" << std::endl;
+    }
+    
+    ~cipher_pair()
+    {
+        std::cout << "~cipher_pair" << std::endl;
+    }
+    
     encryption_type encryption;
     
     decryption_type decryption;
@@ -89,41 +99,57 @@ typedef std::variant<
     
 cipher_pair_variant make_cipher_pair(cipher_metod m)
 {
+    cipher_pair_variant v;
     switch(m)
     {
         case AES_CFB:
-            return cipher_pair<CryptoPP::CFB_Mode<CryptoPP::AES>>{};
+            v.emplace<cipher_pair<CryptoPP::CFB_Mode<CryptoPP::AES>>>();
+            break;
         case AES_CTR_BE:
-            return cipher_pair<CryptoPP::CTR_Mode<CryptoPP::AES>>{};
+            v.emplace<cipher_pair<CryptoPP::CTR_Mode<CryptoPP::AES>>>();
+            break;
         case BLOWFISH_CFB:
-            return cipher_pair<CryptoPP::CFB_Mode<CryptoPP::Blowfish>>{};
+            v.emplace<cipher_pair<CryptoPP::CFB_Mode<CryptoPP::Blowfish>>>();
+            break;
         case CAMELLIA_CFB:
-            return cipher_pair<CryptoPP::CFB_Mode<CryptoPP::Camellia>>{};
+            v.emplace<cipher_pair<CryptoPP::CFB_Mode<CryptoPP::Camellia>>>();
+            break;
         case CAST_CFB:
-            return cipher_pair<CryptoPP::CFB_Mode<CryptoPP::CAST128>>{};
+            v.emplace<cipher_pair<CryptoPP::CFB_Mode<CryptoPP::CAST128>>>();
+            break;
         case CHACHA20:
-            return cipher_pair<CryptoPP::ChaCha>{};
+            v.emplace<cipher_pair<CryptoPP::ChaCha>>();
+            break;
         case DES_CFB:
-            return cipher_pair<CryptoPP::CFB_Mode<CryptoPP::DES>>{};
+            v.emplace<cipher_pair<CryptoPP::CFB_Mode<CryptoPP::DES>>>();
+            break;
         case IDEA_CFB:
-            return cipher_pair<CryptoPP::CFB_Mode<CryptoPP::IDEA>>{};
+            v.emplace<cipher_pair<CryptoPP::CFB_Mode<CryptoPP::IDEA>>>();
+            break;
         case RC2_CFB:
-            return cipher_pair<CryptoPP::CFB_Mode<CryptoPP::RC2>>{};
+            v.emplace<cipher_pair<CryptoPP::CFB_Mode<CryptoPP::RC2>>>();
+            break;
         //case RC4_MD5:
         //    return cipher_pair<CryptoPP::ARC4>{};
         case SALSA20:
-            return cipher_pair<CryptoPP::Salsa20>{};
+            v.emplace<cipher_pair<CryptoPP::Salsa20>>();
+            break;
         case SEED_CFB:
-            return cipher_pair<CryptoPP::CFB_Mode<CryptoPP::SEED>>{};
+            v.emplace<cipher_pair<CryptoPP::CFB_Mode<CryptoPP::SEED>>>();
+            break;
         case SERPENT_CFB:
-            return cipher_pair<CryptoPP::CFB_Mode<CryptoPP::Serpent>>{};
+            v.emplace<cipher_pair<CryptoPP::CFB_Mode<CryptoPP::Serpent>>>();
+            break;
         case CHACHA20_POLY1305:
-            return cipher_pair<CryptoPP::ChaCha20Poly1305>{};
+            v.emplace<cipher_pair<CryptoPP::ChaCha20Poly1305>>();
+            break;
         case AES_GCM:
-            return cipher_pair<CryptoPP::GCM<CryptoPP::AES>>{};
+            v.emplace<cipher_pair<CryptoPP::GCM<CryptoPP::AES>>>();
+            break;
         default:
             throw shadowsocks::error::make_error_code(shadowsocks::error::cipher_algo_not_found);
     }
+    return v;
 }
 
 }
@@ -167,11 +193,11 @@ public:
         {
             if constexpr(detail::cipher_pair_type_traits<decltype(arg)>::value == STREAM)
             {
-                detail::encrypt(arg.encryption, enc_init_, key_, info_.iv_length_, in, in_size, write_buf_.data(), write_buf_size_ );
+                detail::encrypt(arg.encryption, enc_init_, key_, info_.iv_length_, in, in_size, write_buf_.data(), write_buf_size_);
             }
             else
             {
-                detail::encrypt(arg.encryption, enc_init_, key_, enc_iv_, in, in_size, write_buf_.data(), write_buf_size_ );
+                detail::encrypt(arg.encryption, enc_init_, key_, enc_iv_, in, in_size, write_buf_.data(), write_buf_size_);
             }
         }, cipher_);
     }

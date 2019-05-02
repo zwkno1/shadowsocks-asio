@@ -1,12 +1,92 @@
 
 #include <stream/detail/cipher.h>
+#include <stream/stream.h>
 
 #include <cryptopp/files.h>
 #include <cryptopp/hex.h>
+#include <cryptopp/modes.h>
+
+using namespace CryptoPP;
+
+shadowsocks::detail::cipher_pair_variant get_cipher()
+{
+    shadowsocks::detail::cipher_pair_variant v;
+    v.emplace<shadowsocks::detail::cipher_pair<CryptoPP::CFB_Mode<CryptoPP::AES>>>();
+    return v;
+}
+
+void test_cfb()
+{
+    AutoSeededRandomPool prng;
+
+    shadowsocks::detail::cipher_pair_variant v = get_cipher();
+    //v = shadowsocks::detail::cipher_pair<CryptoPP::CFB_Mode<CryptoPP::AES>>{};
+    //v.emplace(shadowsocks::detail::make_cipher_pair(shadowsocks::AES_CFB));
+    SecByteBlock key(24);
+    prng.GenerateBlock( key, key.size() );
+
+    byte iv[ AES::BLOCKSIZE ];
+    prng.GenerateBlock( iv, sizeof(iv) );
+    std::cout << AES::DEFAULT_KEYLENGTH << "," << AES::BLOCKSIZE << std::endl;
+
+    std::string plain = "CFB Mode Test";
+    std::string cipher, encoded, recovered;
+    
+    std::visit([&](auto && arg)
+    {
+        try
+        {
+            std::cout << "plain text: " << plain << std::endl;
+            
+            arg.encryption.SetKeyWithIV( key, key.size(), iv, sizeof(iv));
+            
+            // CFB mode must not use padding. Specifying
+            //  a scheme will result in an exception
+            StringSource ss1( plain, true, 
+                              new StreamTransformationFilter( arg.encryption,                                                           new StringSink( cipher )
+                              ) // StreamTransformationFilter      
+            ); // StringSource
+        }
+        catch( CryptoPP::Exception& e )
+        {
+            std::cerr << e.what() << std::endl;
+            exit(1);
+        }
+    }, v);
+    
+    // Pretty print cipher text
+    StringSource ss2( cipher, true,
+                      new HexEncoder(
+                          new StringSink( encoded )
+                      ) // HexEncoder
+    ); // StringSource
+    std::cout << "cipher text: " << encoded << std::endl;
+
+    try
+    {
+        CFB_Mode< AES >::Decryption dec;
+        dec.SetKeyWithIV( key, key.size(), iv, sizeof(iv));
+        
+        // The StreamTransformationFilter removes
+        //  padding as required.
+        StringSource ss3( cipher, true, 
+                          new StreamTransformationFilter( dec,
+                                                          new StringSink( recovered )
+                          ) // StreamTransformationFilter
+        ); // StringSource
+        
+        std::cout << "recovered text: " << recovered << std::endl;
+    }
+    catch( CryptoPP::Exception& e )
+    {
+        std::cerr << e.what() << std::endl;
+        exit(1);
+    }
+}
 
 int main(int argc, char* argv[])
 {
-    using namespace CryptoPP;
+    test_cfb();
 
     const byte pt[] = {
         0x4c,0x61,0x64,0x69,0x65,0x73,0x20,0x61,0x6e,0x64,0x20,0x47,0x65,0x6e,0x74,0x6c,

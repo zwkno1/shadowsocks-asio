@@ -14,7 +14,7 @@ class stream
 {
 public:
     template<typename Arg>
-    stream(Arg && arg, cipher_context && ctx)
+    stream(Arg && arg, std::unique_ptr<cipher_context> && ctx)
         : next_layer_(std::move(arg))
         , context_(std::move(ctx))
     {
@@ -51,7 +51,7 @@ public:
       boost::asio::async_completion<WriteHandler,
         void (boost::system::error_code, std::size_t)> init(handler);
 
-      detail::async_write(next_layer_, context_, buffers, init.completion_handler);
+      detail::async_write(next_layer_, *context_, buffers, init.completion_handler);
 
       return init.result.get();
     }
@@ -69,7 +69,7 @@ public:
       boost::asio::async_completion<ReadHandler,
         void (boost::system::error_code, std::size_t)> init(handler);
 
-      detail::async_read(next_layer_, context_, buffers, init.completion_handler);
+      detail::async_read(next_layer_, *context_, buffers, init.completion_handler);
 
       return init.result.get();
     }
@@ -77,7 +77,7 @@ public:
 private:
     Stream next_layer_;
 
-    cipher_context context_;
+    std::unique_ptr<cipher_context> context_;
 };
 
 }
