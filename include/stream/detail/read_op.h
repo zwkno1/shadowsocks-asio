@@ -19,9 +19,16 @@ public:
         , context_(ctx)
         , buffers_(buffers)
         , handler_(std::move(h))
+        , bytes_(0)
+        , first_(true)
     {
     }
 
+    void operator()()
+    {
+        handler_(ec_, bytes_);
+    }
+    
 	void operator()(boost::system::error_code ec, std::size_t bytes, int start = 0)
     {
         for(;;)
@@ -38,21 +45,30 @@ public:
                 
                 if(ec)
                 {
-                    next_layer_.get_io_context().post([h = std::move(handler_), ec]()
+                    ec_ = ec;
+                    if(first_)
                     {
-                        h(ec, 0);
-                    });
+                        boost::asio::post(next_layer_.get_executor(), std::move(*this));
+                    }
+                    else
+                    {
+                        (*this)();
+                    }
                     return;
                 }
                 
-                size_t dec_bytes = 0;
-                context_.decrypt(reinterpret_cast<uint8_t *>(buffer.data()), dec_bytes, ec);
-                if(dec_bytes != 0)
+                bytes_ = buffer.size();
+                context_.decrypt(reinterpret_cast<uint8_t *>(buffer.data()), bytes_, ec);
+                if(bytes_ != 0)
                 {
-                    next_layer_.get_io_context().post([h = std::move(handler_), dec_bytes]()
+                    if(first_)
                     {
-                        h(boost::system::error_code{}, dec_bytes);
-                    });
+                        boost::asio::post(next_layer_.get_executor(), std::move(*this));
+                    }
+                    else
+                    {
+                        (*this)();
+                    }
                     return;
                 }
                 
@@ -60,6 +76,7 @@ public:
             }
                 return;
             case 0:
+                first_ = false;
                 if(ec)
                 {
                     handler_(ec, 0);
@@ -79,6 +96,12 @@ private:
     MutableBufferSequence buffers_;
 
     Handler handler_;
+    
+    boost::system::error_code ec_;
+    
+    size_t bytes_;
+    
+    bool first_;
 };
 
 template <typename Stream, typename MutableBufferSequence, typename Handler>

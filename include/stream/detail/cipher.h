@@ -22,7 +22,6 @@
 #include <cryptopp/chachapoly.h>
 
 #include <stream/error.h>
-#include <iostream>
 
 namespace shadowsocks
 {
@@ -148,6 +147,7 @@ void decrypt(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, 
     const size_t tag_length = 16;
     const size_t salt_length = key.size();
     
+    const size_t max_out_size = out_size;
     size_t total_size = in_size;
     in_size = 0;
     out_size = 0;
@@ -186,7 +186,6 @@ void decrypt(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, 
                 reinterpret_cast<const CryptoPP::byte *>(in) + in_size,
                 2);
             increase_iv(iv);
-            
             in_size += 2 + tag_length;
             block_size = (block_size_buf[0] << 8) | block_size_buf[1];
             
@@ -204,13 +203,19 @@ void decrypt(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, 
         }
         else
         {
+            if(max_out_size < out_size + block_size)
+            {
+                return;
+            }
+            
             if(total_size - in_size < block_size + tag_length)
             {
                 ec = make_error_code(::shadowsocks::error::cipher_need_more);
                 return;
             }
+            
             bool result = dec.DecryptAndVerify(
-                reinterpret_cast<CryptoPP::byte *>(out),
+                reinterpret_cast<CryptoPP::byte *>(out + out_size),
                 reinterpret_cast<const CryptoPP::byte *>(in) + in_size + block_size,
                 tag_length, iv, iv.size(), nullptr, 0,
                 reinterpret_cast<const CryptoPP::byte *>(in) + in_size,
@@ -223,8 +228,8 @@ void decrypt(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, 
             if(!result)
             {
                 ec = make_error_code(::shadowsocks::error::cipher_aead_decrypt_verify_failed);
+                return;
             }
-            return;
         }
     }
 }

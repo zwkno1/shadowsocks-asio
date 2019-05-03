@@ -69,6 +69,7 @@ private:
             }
         });
     }
+    
     void operator()(error_code ec = error_code{}, size_t bytes = 0, int start = 0)
     {
         if(ec)
@@ -139,6 +140,7 @@ private:
                     start = 0;
                     continue;
                 default:
+                    spdlog::error("bad proto");
                     return;
                 }
             default:
