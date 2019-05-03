@@ -1,3 +1,5 @@
 # shadowsocks-asio
 
-a c++ shadowsocks server use crypto++ and boost.asio.
+a c++ shadowsocks server.
+
+dependencies: crypto++ and boost.asio.
