@@ -42,9 +42,25 @@ int main(int argc, char *argv[])
     
     boost::asio::io_context context{1};
     
+    // start timer to print session num
+    boost::asio::steady_timer timer{context};
+    std::function<void()> start_timer;
+    start_timer = [&timer, &start_timer]()
+    {
+        timer.expires_from_now(std::chrono::seconds(15));
+        timer.async_wait([&start_timer](boost::system::error_code ec)
+        {
+            spdlog::debug("session count: {}", shadowsocks::server_session::count());
+            if(!ec)
+            {
+                start_timer();
+            }
+        });
+    };
+    start_timer();
+    
     shadowsocks::tcp_listener<std::function<void(boost::asio::ip::tcp::socket &&)>> listener(context, [info, &key, &config](boost::asio::ip::tcp::socket && s)
     {
-        spdlog::debug("session count: {}", shadowsocks::server_session::count());
         make_shared<shadowsocks::server_session>(std::move(s), std::make_unique<shadowsocks::cipher_context>(*info, key), config)->start();
     });
 
