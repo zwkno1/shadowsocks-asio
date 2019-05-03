@@ -2,13 +2,11 @@
 
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/secblock.h>
-#include <cryptopp/chacha.h>
 #include <cryptopp/osrng.h>
-#include <cryptopp/files.h>
-#include <cryptopp/hex.h>
 #include <cryptopp/aes.h>
 #include <cryptopp/blowfish.h>
 #include <cryptopp/camellia.h>
+#include <cryptopp/chacha.h>
 #include <cryptopp/cast.h>
 #include <cryptopp/chacha.h>
 #include <cryptopp/des.h>
@@ -24,6 +22,7 @@
 #include <cryptopp/chachapoly.h>
 
 #include <stream/error.h>
+#include <iostream>
 
 namespace shadowsocks
 {

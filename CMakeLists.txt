@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 set(CMAKE_CXX_STANDARD 17)
 project(shadowsocks-asio)
 
-#set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_STATIC_LIBS ON)
 include(${PROJECT_SOURCE_DIR}/cmake/external/cryptopp.cmake)
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules ${CMAKE_MODULE_PATH})
@@ -14,7 +14,7 @@ include_directories(${Boost_INCLUDE_DIR} ${CryptoPP_INCLUDE_DIRS} ${CryptoPP_INC
 
 find_package(Threads)
 
-include_directories(./include ./third_party/spdlog/include)
+include_directories(./include ./third_party/spdlog/include ./third_party/serialization2/include)
 
 file(GLOB_RECURSE HEADER_FILES "./include/*.h ./include/detail/*.h")
 add_custom_target(headers SOURCES ${HEADER_FILES})
@@ -41,4 +41,7 @@ target_link_libraries(ss-test
 	${CryptoPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
 	)
+
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/config/client.json DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/config/server.json DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 

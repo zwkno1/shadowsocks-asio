@@ -4,6 +4,15 @@
 #include <type_traits>
 
 #include <boost/asio.hpp>
+#include <boost/noncopyable.hpp>
+
+#ifndef CRYPTOPP_ENABLE_NAMESPACE_WEAK 
+#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
+#include <cryptopp/md5.h>
+#undef CRYPTOPP_ENABLE_NAMESPACE_WEAK
+#else
+#include <cryptopp/md5.h>
+#endif
 
 #include <spdlog/spdlog.h>
 
@@ -22,7 +31,7 @@ enum cipher_type : uint8_t
 enum cipher_metod
 {
     AES_CFB,
-    AES_CTR_BE,
+    AES_CTR,
     BLOWFISH_CFB,
     CAMELLIA_CFB,
     CAST_CFB,
@@ -35,6 +44,7 @@ enum cipher_metod
     SEED_CFB,
     SERPENT_CFB,
     CHACHA20_POLY1305,
+    XCHACHA20_POLY1305,
     AES_GCM,
 };
 
@@ -44,8 +54,11 @@ struct cipher_info
     size_t key_length_;
     size_t iv_length_;
     cipher_type type_;
-    size_t salt_length_; // only for AEAD
-    size_t tag_length_; // only for AEAD
+    
+    // now same with key_length_
+    //size_t salt_length_; // only for AEAD
+    // now fixed 16 
+    //size_t tag_length_; // only for AEAD
 };
 
 namespace detail
@@ -63,7 +76,12 @@ struct cipher_pair
 };
 
 template<typename T>
-struct cipher_pair_type_traits : public std::integral_constant<cipher_type, ((std::is_same<std::decay_t<T>, cipher_pair<CryptoPP::ChaCha20Poly1305>>::value || std::is_same<std::decay_t<T>, cipher_pair<CryptoPP::GCM<CryptoPP::AES>>>::value) ? AEAD : STREAM)>
+struct cipher_pair_type_traits 
+    : public std::integral_constant<cipher_type, (
+        std::is_same<std::decay_t<T>, cipher_pair<CryptoPP::ChaCha20Poly1305>>::value 
+        || std::is_same<std::decay_t<T>, cipher_pair<CryptoPP::XChaCha20Poly1305>>::value 
+        || std::is_same<std::decay_t<T>, cipher_pair<CryptoPP::GCM<CryptoPP::AES>>>::value
+    ) ? AEAD : STREAM >
 {
 };
 
@@ -82,7 +100,9 @@ typedef std::variant<
     cipher_pair<CryptoPP::CFB_Mode<CryptoPP::SEED>>,
     cipher_pair<CryptoPP::CFB_Mode<CryptoPP::Serpent>>,
     // AEAD
+    // !!! if you add a aead method, don't forget to add it in cipher_pair_type_traits !!!
     cipher_pair<CryptoPP::ChaCha20Poly1305>,
+    cipher_pair<CryptoPP::XChaCha20Poly1305>,
     cipher_pair<CryptoPP::GCM<CryptoPP::AES>>
     > cipher_pair_variant;
 
@@ -93,7 +113,7 @@ void make_cipher_pair(cipher_metod m, cipher_pair_variant & v)
         case AES_CFB:
             v.emplace<cipher_pair<CryptoPP::CFB_Mode<CryptoPP::AES>>>();
             break;
-        case AES_CTR_BE:
+        case AES_CTR:
             v.emplace<cipher_pair<CryptoPP::CTR_Mode<CryptoPP::AES>>>();
             break;
         case BLOWFISH_CFB:
@@ -131,6 +151,9 @@ void make_cipher_pair(cipher_metod m, cipher_pair_variant & v)
         case CHACHA20_POLY1305:
             v.emplace<cipher_pair<CryptoPP::ChaCha20Poly1305>>();
             break;
+        case XCHACHA20_POLY1305:
+            v.emplace<cipher_pair<CryptoPP::XChaCha20Poly1305>>();
+            break;
         case AES_GCM:
             v.emplace<cipher_pair<CryptoPP::GCM<CryptoPP::AES>>>();
             break;
@@ -141,7 +164,66 @@ void make_cipher_pair(cipher_metod m, cipher_pair_variant & v)
 
 }
 
-class cipher_context
+const cipher_info * get_cipher_info(const std::string & name)
+{
+    static const std::unordered_map<std::string, cipher_info> cipher_infos = 
+    {
+        {"aes-128-cfb", {AES_CFB, 16, 16, STREAM}},
+        {"aes-192-cfb", {AES_CFB, 24, 16, STREAM}},
+        {"aes-256-cfb", {AES_CFB, 32, 16, STREAM}},
+        {"aes-128-ctr", {AES_CTR, 16, 16, STREAM}},
+        {"aes-192-ctr", {AES_CTR, 24, 16, STREAM}},
+        {"aes-256-ctr", {AES_CTR, 32, 16, STREAM}},
+        {"bf-cfb", {BLOWFISH_CFB, 16, 8, STREAM}},
+        {"camellia-128-cfb", {CAMELLIA_CFB, 16, 16, STREAM}},
+        {"camellia-192-cfb", {CAMELLIA_CFB, 24, 16, STREAM}},
+        {"camellia-256-cfb", {CAMELLIA_CFB, 32, 16, STREAM}},
+        {"cast5-cfb", {CAST_CFB, 16, 8, STREAM}},
+        {"chacha20", {CHACHA20, 32, 8, STREAM}},
+        {"chacha20-ietf", {CHACHA20, 32, 12, STREAM}},
+        {"des-cfb", {DES_CFB, 8, 8, STREAM}},
+        {"idea-cfb", {IDEA_CFB, 16, 8, STREAM}},
+        {"rc2-cfb", {RC2_CFB, 16, 8, STREAM}},
+        //{"rc4-md5", {RC4_MD5, 16, 16, STREAM}},
+        {"salsa20", {SALSA20, 32, 8, STREAM}},
+        {"seed-cfb", {SEED_CFB, 16, 16, STREAM}},
+        {"serpent-256-cfb", {SERPENT_CFB, 32, 16, STREAM}},
+        {"chacha20-ietf-poly1305", {CHACHA20_POLY1305, 32, 12, AEAD/*, 32, 16*/}},
+        {"xchacha20-ietf-poly1305", {XCHACHA20_POLY1305, 32, 24, AEAD/*, 32, 16*/}},
+        {"aes-128-gcm", {AES_GCM, 16, 12, AEAD/*, 16, 16*/}},
+        {"aes-192-gcm", {AES_GCM, 24, 12, AEAD/*, 24, 16*/}},
+        {"aes-256-gcm", {AES_GCM, 32, 12, AEAD/*, 32, 16*/}}
+    };
+    
+    auto iter = cipher_infos.find(name);
+    if(iter == cipher_infos.end())
+    {
+        return nullptr;
+    }
+    
+    return &iter->second;
+}
+
+std::vector<uint8_t> get_cipher_key(const shadowsocks::cipher_info & info, const std::string &password)
+{
+    std::vector<uint8_t> result;
+    for(int i = 0; result.size() < info.key_length_; ++i)
+    {
+        CryptoPP::Weak1::MD5 md5;
+        if (i != 0)
+        {
+            md5.Update(&result[(i-1)*16], 16);
+        }
+        md5.Update(reinterpret_cast<const uint8_t * >(password.data()), password.size());
+        result.resize((i+1)*16);
+        md5.Final(&result[i*16]);
+    }
+    
+    result.resize(info.key_length_);
+    return result;
+}
+
+class cipher_context : private boost::noncopyable
 {
 public:
     cipher_context(const cipher_info & info, const std::vector<uint8_t> & key)
@@ -191,24 +273,22 @@ public:
     
     void decrypt(uint8_t *out, size_t & out_size, boost::system::error_code & ec)
     {
-        //spdlog::debug("decrypt {}", read_buf_size_);
         std::visit([&](auto&& arg)
         {
-            size_t read_buf_size = read_buf_size_;
+            size_t dec_size = read_buf_size_;
             if constexpr(detail::cipher_pair_type_traits<decltype(arg)>::value == STREAM)
             {
-                detail::decrypt(arg.decryption, dec_init_, key_, info_.iv_length_, read_buf_.data(), read_buf_size, out, out_size);
+                detail::decrypt(arg.decryption, dec_init_, key_, info_.iv_length_, read_buf_.data(), dec_size, out, out_size);
             }
             else
             {
-                detail::decrypt(arg.decryption, dec_init_, key_, dec_iv_, dec_block_size_, read_buf_.data(), read_buf_size, out, out_size, ec);
+                detail::decrypt(arg.decryption, dec_init_, key_, dec_iv_, dec_block_size_, read_buf_.data(), dec_size, out, out_size, ec);
             }
-            //spdlog::debug("decrypt {}, ec: {}", read_buf_size, ec.message());
-            read_buf_size_ -= read_buf_size;
+            read_buf_size_ -= dec_size;
             
-            if((read_buf_size != 0) && (read_buf_size_ != 0))
+            if((dec_size != 0) && (read_buf_size_ != 0))
             {
-                std::memmove(read_buf_.data(), read_buf_.data() + read_buf_size, read_buf_size_);
+                std::memmove(read_buf_.data(), read_buf_.data() + dec_size, read_buf_size_);
             }
         }, cipher_);
     }

@@ -8,6 +8,7 @@
 #include <asio.h>
 
 #include <stream/stream.h>
+#include <server_config.h>
 #include <proto.h>
 #include <tunnel.h>
 
@@ -17,14 +18,14 @@ namespace shadowsocks
 class server_session : public enable_shared_from_this<server_session>
 {
 public:
-    server_session(tcp::socket && socket, std::unique_ptr<cipher_context> && cc, size_t keepalive_seconds = 0)
+    server_session(tcp::socket && socket, std::unique_ptr<cipher_context> && cc, const server_config & config)
         : local_(std::move(socket), std::move(cc))
         , remote_(socket.get_io_context())
         , resolver_(socket.get_io_service())
         , rlen_(0)
         , timer_(socket.get_io_context())
         , active_(chrono::steady_clock::now())
-        , keepalive_seconds_(keepalive_seconds)
+        , config_(config)
     {
         ++count();
     }
@@ -38,7 +39,7 @@ public:
     {
         (*this)();
         
-        if(keepalive_seconds_ != 0)
+        if(config_.timeout != 0)
         {
             start_timer();
         }
@@ -53,10 +54,10 @@ public:
 private:
     void start_timer()
     {
-        timer_.expires_from_now(chrono::seconds(keepalive_seconds_));
+        timer_.expires_from_now(chrono::seconds(config_.timeout));
         timer_.async_wait([this, self = shared_from_this()](error_code ec)
         {
-            if(chrono::duration_cast<chrono::seconds>(chrono::steady_clock::now() - active_).count() > keepalive_seconds_)
+            if(chrono::duration_cast<chrono::seconds>(chrono::steady_clock::now() - active_).count() > config_.timeout)
             {
                 error_code ec;
                 local_.next_layer().shutdown(asio::socket_base::shutdown_both, ec);
@@ -171,8 +172,7 @@ private:
     
     chrono::steady_clock::time_point active_;
     
-    size_t keepalive_seconds_;
-
+    const server_config & config_;
 };
 
 }

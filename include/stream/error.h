@@ -37,9 +37,11 @@ public:
       if(value == cipher_need_more)
           return "Cipher need more";
       if(value == cipher_aead_invalid_block_size)
-          return "Cipher aread block too long";
+          return "Cipher aread invalid block size";
       if(value == cipher_aead_decrypt_verify_failed)
           return "Cipher aead decrypt verify failed";
+      if(value == cipher_buf_too_short)
+          return "Cipher buf too short";
       
       return "shadowsocks.cipher error";
   }

@@ -8,20 +8,12 @@
 
 using namespace CryptoPP;
 
-shadowsocks::detail::cipher_pair_variant get_cipher()
-{
-    shadowsocks::detail::cipher_pair_variant v;
-    v.emplace<shadowsocks::detail::cipher_pair<CryptoPP::CFB_Mode<CryptoPP::AES>>>();
-    return v;
-}
-
 void test_cfb()
 {
     AutoSeededRandomPool prng;
 
-    shadowsocks::detail::cipher_pair_variant v = get_cipher();
-    //v = shadowsocks::detail::cipher_pair<CryptoPP::CFB_Mode<CryptoPP::AES>>{};
-    //v.emplace(shadowsocks::detail::make_cipher_pair(shadowsocks::AES_CFB));
+    shadowsocks::detail::cipher_pair_variant v;
+    shadowsocks::detail::make_cipher_pair(shadowsocks::AES_CFB, v);
     SecByteBlock key(24);
     prng.GenerateBlock( key, key.size() );
 

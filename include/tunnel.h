@@ -115,7 +115,7 @@ public:
     Buffer & buf1_;
     Buffer & buf2_;
     Handler handler_;
-    std::string name_;
+    //std::string name_;
 };
 
 }
