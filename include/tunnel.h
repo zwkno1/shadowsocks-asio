@@ -70,8 +70,6 @@ public:
             return;
         }
         
-        handler_();
-
         s1_.async_read_some(asio::buffer(buf1_), [this, self = this->shared_from_this()](error_code ec, size_t bytes)
         {
             handle_read_s1(ec, bytes);
@@ -102,8 +100,6 @@ public:
             return;
         }
         
-        handler_();
-
         s2_.async_read_some(asio::buffer(buf2_), [this, self = this->shared_from_this()](error_code ec, size_t bytes)
         {
             handle_read_s2(ec, bytes);

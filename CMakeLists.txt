@@ -44,4 +44,5 @@ target_link_libraries(ss-test
 
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/config/client.json DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/config/server.json DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/config/change_cipher.sh DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 

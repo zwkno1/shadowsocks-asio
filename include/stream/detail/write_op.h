@@ -41,8 +41,8 @@ public:
                 context_.encrypt(reinterpret_cast<const uint8_t *>(buffer.data()), size);
                 bytes_ = size;
                 boost::asio::async_write(next_layer_, context_.get_write_buffer(), std::move(*this));
+                return;
             }
-            return;
         }
     }
 

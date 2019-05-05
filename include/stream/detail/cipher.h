@@ -205,6 +205,10 @@ void decrypt(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, 
         {
             if(max_out_size < out_size + block_size)
             {
+                if(out_size == 0)
+                {
+                    ec = make_error_code(::shadowsocks::error::cipher_buf_too_short);
+                }
                 return;
             }
             

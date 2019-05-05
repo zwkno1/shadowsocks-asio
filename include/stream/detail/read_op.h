@@ -26,7 +26,15 @@ public:
 
     void operator()()
     {
-        handler_(ec_, bytes_);
+        if(first_)
+        {
+            first_ = false;
+            boost::asio::post(next_layer_.get_executor(), std::move(*this));
+        }
+        else
+        {
+            handler_(ec_, bytes_);
+        }
     }
     
 	void operator()(boost::system::error_code ec, std::size_t bytes, int start = 0)
@@ -38,22 +46,11 @@ public:
             case 1:
             {
                 boost::asio::mutable_buffer buffer(*boost::asio::buffer_sequence_begin(buffers_));
-                if(buffer.size() < max_cipher_block_size)
-                {
-                    ec = shadowsocks::error::make_error_code(shadowsocks::error::cipher_buf_too_short);
-                }
                 
                 if(ec)
                 {
                     ec_ = ec;
-                    if(first_)
-                    {
-                        boost::asio::post(next_layer_.get_executor(), std::move(*this));
-                    }
-                    else
-                    {
-                        (*this)();
-                    }
+                    (*this)();
                     return;
                 }
                 
@@ -61,14 +58,7 @@ public:
                 context_.decrypt(reinterpret_cast<uint8_t *>(buffer.data()), bytes_, ec);
                 if(bytes_ != 0)
                 {
-                    if(first_)
-                    {
-                        boost::asio::post(next_layer_.get_executor(), std::move(*this));
-                    }
-                    else
-                    {
-                        (*this)();
-                    }
+                    (*this)();
                     return;
                 }
                 
@@ -79,7 +69,8 @@ public:
                 first_ = false;
                 if(ec)
                 {
-                    handler_(ec, 0);
+                    (*this)();
+                    return;
                 }
                 context_.handle_read(bytes);
                 start = 1;
