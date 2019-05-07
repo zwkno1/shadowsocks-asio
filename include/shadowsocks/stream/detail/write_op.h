@@ -2,7 +2,7 @@
 
 #include <boost/asio.hpp>
 
-#include <stream/cipher_context.h>
+#include <shadowsocks/stream/detail/cipher_context.h>
 
 namespace shadowsocks
 {
@@ -13,17 +13,17 @@ template <typename Stream, typename ConstBufferSequence, typename Handler>
 class write_op
 {
 public:
-	write_op(Stream & next_layer, cipher_context & ctx, const ConstBufferSequence & buffers, Handler & h)
-	    : next_layer_(next_layer)
-	    , context_(ctx)
-	    , buffers_(buffers)
-	    , handler_(std::move(h))
+    write_op(Stream & next_layer, cipher_context & ctx, const ConstBufferSequence & buffers, Handler & h)
+        : next_layer_(next_layer)
+        , context_(ctx)
+        , buffers_(buffers)
+        , handler_(std::move(h))
         , bytes_(0)
-	{
-	}
+    {
+    }
 
-	void operator()(boost::system::error_code ec, std::size_t bytes, int start = 0)
-	{
+    void operator()(boost::system::error_code ec, std::size_t bytes, int start = 0)
+    {
         for(;;)
         {
             switch (start)
@@ -47,13 +47,13 @@ public:
     }
 
 private:
-	Stream & next_layer_;
+    Stream & next_layer_;
 
-	cipher_context & context_;
+    cipher_context & context_;
+    
+    ConstBufferSequence buffers_;
 
-	ConstBufferSequence buffers_;
-
-	Handler handler_;
+    Handler handler_;
     
     size_t bytes_;
 };
@@ -61,7 +61,7 @@ private:
 template <typename Stream, typename ConstBufferSequence, typename Handler>
 inline void async_write(Stream& next_layer, cipher_context & ctx, const ConstBufferSequence & buffers, Handler& handler)
 {
-	write_op<Stream, ConstBufferSequence, Handler>{next_layer, ctx, buffers, handler}(boost::system::error_code{}, 0, 1);
+    write_op<Stream, ConstBufferSequence, Handler>{next_layer, ctx, buffers, handler}(boost::system::error_code{}, 0, 1);
 }
 
 }

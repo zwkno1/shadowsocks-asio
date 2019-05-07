@@ -1,16 +1,12 @@
 #pragma once
 
-#include <any>
-#include <variant>
 #include <vector>
-#include <string_view>
 
-#include <asio.h>
-
-#include <stream/stream.h>
-#include <server_config.h>
-#include <proto.h>
-#include <tunnel.h>
+#include <shadowsocks/asio.h>
+#include <shadowsocks/stream/stream.h>
+#include <shadowsocks/ss_config.h>
+#include <shadowsocks/proto.h>
+#include <shadowsocks/tunnel.h>
 
 namespace shadowsocks
 {
@@ -18,8 +14,8 @@ namespace shadowsocks
 class server_session : public enable_shared_from_this<server_session>
 {
 public:
-    server_session(tcp::socket && socket, std::unique_ptr<cipher_context> && cc, const server_config & config)
-        : local_(std::move(socket), std::move(cc))
+    server_session(tcp::socket && socket, const cipher_info & info, const std::vector<uint8_t> & key, const ss_config & config)
+        : local_(std::move(socket), info, key)
         , remote_(socket.get_io_context())
         , resolver_(socket.get_io_service())
         , rlen_(0)
@@ -174,7 +170,7 @@ private:
     
     chrono::steady_clock::time_point active_;
     
-    const server_config & config_;
+    const ss_config & config_;
 };
 
 }

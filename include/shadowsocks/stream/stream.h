@@ -2,9 +2,9 @@
 
 #include <boost/asio.hpp>
 
-#include <stream/cipher_context.h>
-#include <stream/detail/read_op.h>
-#include <stream/detail/write_op.h>
+#include <shadowsocks/stream/detail/cipher_context.h>
+#include <shadowsocks/stream/detail/read_op.h>
+#include <shadowsocks/stream/detail/write_op.h>
 
 namespace shadowsocks
 {
@@ -14,9 +14,9 @@ class stream
 {
 public:
     template<typename Arg>
-    stream(Arg && arg, std::unique_ptr<cipher_context> && ctx)
+    stream(Arg && arg, const cipher_info & info, const std::vector<uint8_t> & key)
         : next_layer_(std::move(arg))
-        , context_(std::move(ctx))
+        , context_(std::make_unique<detail::cipher_context>(info, key))
     {
     }
     
@@ -77,7 +77,7 @@ public:
 private:
     Stream next_layer_;
 
-    std::unique_ptr<cipher_context> context_;
+    std::unique_ptr<detail::cipher_context> context_;
 };
 
 }

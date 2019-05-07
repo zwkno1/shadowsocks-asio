@@ -1,6 +1,6 @@
 #pragma once
 
-#include <asio.h>
+#include <shadowsocks/asio.h>
 
 namespace shadowsocks
 {

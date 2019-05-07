@@ -19,12 +19,29 @@ include_directories(./include ./third_party/spdlog/include ./third_party/seriali
 file(GLOB_RECURSE HEADER_FILES "./include/*.h ./include/detail/*.h")
 add_custom_target(headers SOURCES ${HEADER_FILES})
 
+add_executable(ss-local
+	${HEADER_FILES}
+	src/server.cpp
+	)
+add_dependencies(ss-local CryptoPP)
+
+target_link_libraries(ss-local
+	${Boost_LIBRARIES}
+	${CryptoPP_LIBRARIES}
+	${CMAKE_THREAD_LIBS_INIT}
+	)
+	
 add_executable(ss-server 
 	${HEADER_FILES}
 	src/server.cpp
 	)
 add_dependencies(ss-server CryptoPP)
 
+set_target_properties(
+    ss-server
+    PROPERTIES
+    COMPILE_DEFINITIONS BUILD_SHADOWSOCKS_SERVER=1
+    )
 
 target_link_libraries(ss-server
 	${Boost_LIBRARIES}

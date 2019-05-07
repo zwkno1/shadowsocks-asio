@@ -21,16 +21,11 @@
 #include <cryptopp/gcm.h>
 #include <cryptopp/chachapoly.h>
 
-#include <stream/error.h>
+#include <shadowsocks/stream/error.h>
+#include <shadowsocks/stream/cipher.h>
 
 namespace shadowsocks
 {
-    
-enum 
-{
-    max_cipher_block_size = 0x3fff,
-};
-
 namespace detail
 {
         
@@ -46,7 +41,7 @@ void increase_iv(CryptoPP::SecByteBlock & iv)
 }
 
 template<typename Encryption>
-void encrypt(Encryption & enc, bool & init, const CryptoPP::SecByteBlock & key, size_t iv_length, const uint8_t * in, size_t & in_size, uint8_t * out, size_t & out_size)
+void encrypt_stream(Encryption & enc, bool & init, const CryptoPP::SecByteBlock & key, size_t iv_length, const uint8_t * in, size_t & in_size, uint8_t * out, size_t & out_size)
 {
     out_size = 0;
     if(!init)
@@ -70,7 +65,7 @@ void encrypt(Encryption & enc, bool & init, const CryptoPP::SecByteBlock & key, 
 }
 
 template<typename Decryption>
-void decrypt(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, size_t iv_length, const uint8_t * in, size_t & in_size, uint8_t * out, size_t & out_size)
+void decrypt_stream(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, size_t iv_length, const uint8_t * in, size_t & in_size, uint8_t * out, size_t & out_size)
 {
     out_size = 0;
     size_t offset = 0;
@@ -94,7 +89,7 @@ void decrypt(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, 
 }
 
 template<typename Encryption>
-void encrypt(Encryption & enc, bool & init, const CryptoPP::SecByteBlock & key, CryptoPP::SecByteBlock & iv, const uint8_t * in, size_t & in_size, uint8_t * out, size_t & out_size)
+void encrypt_aead(Encryption & enc, bool & init, const CryptoPP::SecByteBlock & key, CryptoPP::SecByteBlock & iv, const uint8_t * in, size_t & in_size, uint8_t * out, size_t & out_size)
 {
     const size_t tag_length = 16;
     const size_t salt_length = key.size();
@@ -142,7 +137,7 @@ void encrypt(Encryption & enc, bool & init, const CryptoPP::SecByteBlock & key, 
 }
 
 template<typename Decryption>
-void decrypt(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, CryptoPP::SecByteBlock & iv, size_t & block_size, const uint8_t *in, size_t & in_size, uint8_t * out, size_t & out_size, boost::system::error_code & ec)
+void decrypt_aead(Decryption & dec, bool & init, const CryptoPP::SecByteBlock & key, CryptoPP::SecByteBlock & iv, size_t & block_size, const uint8_t *in, size_t & in_size, uint8_t * out, size_t & out_size, boost::system::error_code & ec)
 {
     const size_t tag_length = 16;
     const size_t salt_length = key.size();

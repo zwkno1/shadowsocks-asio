@@ -12,7 +12,14 @@ mkdir build && cd build && cmake ..
 make -j8
 ```
 
-## run 
+## run server
 ```shell
 ./ss-server -c server.json
 ```
+
+## run client
+
+```shell
+./ss-local -c client.json
+```
+

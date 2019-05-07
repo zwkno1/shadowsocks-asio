@@ -2,11 +2,10 @@
 
 #include <boost/asio.hpp>
 
-#include <stream/cipher_context.h>
+#include <shadowsocks/stream/detail/cipher_context.h>
 
 namespace shadowsocks
 {
-
 namespace detail
 {
 

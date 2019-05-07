@@ -1,7 +1,8 @@
 #include <fstream>
 
-#include <tcp_listener.h>
-#include <server_session.h>
+#include <shadowsocks/tcp_listener.h>
+#include <shadowsocks/server_session.h>
+#include <shadowsocks/client_session.h>
 #include <spdlog/spdlog.h>
 
 int main(int argc, char *argv[])
@@ -12,7 +13,7 @@ int main(int argc, char *argv[])
         return -1;
     }
     
-    shadowsocks::server_config config;
+    shadowsocks::ss_config config;
     
     try
     {
@@ -25,9 +26,10 @@ int main(int argc, char *argv[])
     catch(std::exception & e)
     {
         std::cout << "load config file error: " << e.what() << std::endl;
+        return -1;
     }
     
-    spdlog::set_level(spdlog::level::from_str(config.log_level));
+    spdlog::set_level(spdlog::level::from_str(config.log_level.value_or("info")));
     
     const shadowsocks::cipher_info * info = shadowsocks::get_cipher_info(config.method);
     if(info == nullptr)
@@ -38,7 +40,7 @@ int main(int argc, char *argv[])
     }
     spdlog::info("cipher method: {}", config.method);
     
-    std::vector<uint8_t> key = shadowsocks::get_cipher_key(*info, config.password);
+    std::vector<uint8_t> key = shadowsocks::build_cipher_key(*info, config.password);
     
     boost::asio::io_context context{1};
     
@@ -61,12 +63,25 @@ int main(int argc, char *argv[])
     
     shadowsocks::tcp_listener<std::function<void(boost::asio::ip::tcp::socket &&)>> listener(context, [info, &key, &config](boost::asio::ip::tcp::socket && s)
     {
-        make_shared<shadowsocks::server_session>(std::move(s), std::make_unique<shadowsocks::cipher_context>(*info, key), config)->start();
+#ifdef BUILD_SHADOWSOCKS_SERVER
+        make_shared<shadowsocks::server_session>(std::move(s), *info, key, config)->start();
+#else
+        make_shared<shadowsocks::client_session>(std::move(s), *info, key, config)->start();
+#endif
     });
 
     try 
     {
-        listener.start(boost::asio::ip::tcp::endpoint{boost::asio::ip::make_address(config.server), config.server_port});
+#ifdef BUILD_SHADOWSOCKS_SERVER
+        listener.start(boost::asio::ip::tcp::endpoint{boost::asio::ip::make_address(config.server_address), config.server_port});
+#else
+        if((!config.local_address) || (!config.local_port))
+        {
+            std::cout << "ss-local should configure local_address and local_port" << std::endl;
+            return -1;
+        }
+        listener.start(boost::asio::ip::tcp::endpoint{boost::asio::ip::make_address(*config.local_address), *config.local_port});
+#endif
         context.run();
     }
     catch(const CryptoPP::Exception & e)

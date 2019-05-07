@@ -1,10 +1,10 @@
 
-#include <stream/detail/cipher.h>
-#include <stream/stream.h>
-
 #include <cryptopp/files.h>
 #include <cryptopp/hex.h>
 #include <cryptopp/modes.h>
+
+#include <shadowsocks/stream/detail/cipher_ops.h>
+#include <shadowsocks/stream/stream.h>
 
 using namespace CryptoPP;
 
@@ -111,7 +111,7 @@ int main(int argc, char* argv[])
     ChaCha20Poly1305::Encryption enc;
     size_t enc_in_size = sizeof(pt);
     size_t enc_out_size = 0;
-    shadowsocks::detail::encrypt(enc, enc_init, key, enc_iv, pt, enc_in_size, enc_buf, enc_out_size);
+    shadowsocks::detail::encrypt_aead(enc, enc_init, key, enc_iv, pt, enc_in_size, enc_buf, enc_out_size);
     
     std::cout << "Plain: ";
     StringSource(pt, sizeof(pt), true, new HexEncoder(new FileSink(std::cout)));
@@ -137,7 +137,7 @@ int main(int argc, char* argv[])
     size_t dec_out_size = 0;
     
     boost::system::error_code ec;
-    shadowsocks::detail::decrypt(dec, dec_init, key, dec_iv, block_size, enc_buf, dec_in_size, dec_buf, dec_out_size, ec);
+    shadowsocks::detail::decrypt_aead(dec, dec_init, key, dec_iv, block_size, enc_buf, dec_in_size, dec_buf, dec_out_size, ec);
     std::cout << "decryt result: " << ec.message() << std::endl;
     std::cout << "decrypt size:" << dec_out_size << ", left: " << enc_out_size - dec_in_size << std::endl;
 

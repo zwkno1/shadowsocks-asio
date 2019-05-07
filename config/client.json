@@ -6,7 +6,6 @@
     "local_port":9999,
     "method": "xchacha20-ietf-poly1305",
     "password":"123456",
-    "fast_open": false,
     "timeout":300
 }
 

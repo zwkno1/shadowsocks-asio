@@ -1,6 +1,5 @@
 {
-	"log_level": "debug",
-    "server":"0.0.0.0",
+    "server_address":"0.0.0.0",
     "server_port":33333,
     "password":"123456",
     "method": "xchacha20-ietf-poly1305",
