@@ -81,6 +81,8 @@ private:
             {
             case 0:
                 // read local socks5 handshake
+                local_.set_option(tcp::no_delay{true});
+                local_.set_option(asio::socket_base::keep_alive{true});
                 local_.async_read_some(asio::buffer(rbuf_.data() + rlen_, rbuf_.size() - rlen_), [this, start, self = shared_from_this()](error_code ec, size_t bytes)
                 {
                     (*this)(ec, bytes, start + 1);
@@ -178,6 +180,16 @@ private:
                     std::memset(wbuf_.data(), 0, wlen);
                     wbuf_[0] = SOCKS5_VERSION;
                     wbuf_[3] = 1;  // ipv4
+                        
+                    if(config_.no_delay.value_or(false))
+                    {
+                        remote_.next_layer().set_option(tcp::no_delay{true});
+                    }
+                    else
+                    {
+                        local_.set_option(tcp::no_delay{false});
+                    }
+                    remote_.next_layer().set_option(asio::socket_base::keep_alive{true});
                     
                     // start tunnel
                     (tunnel_ = make_shared<tunnel_type>(local_, remote_, rbuf_, wbuf_, [this, self = shared_from_this()](){ active_ = chrono::steady_clock::now(); })).lock()->start(rlen_, wlen);
@@ -194,7 +206,7 @@ private:
             case 4:
                 // read local socks5 request
                 spdlog::debug("read socks5 request, rlen: {}", rlen_);
-                local_.async_read_some(asio::buffer(rbuf_.data() + rlen_, rbuf_.size() - rlen_), [this, start, self = shared_from_this()](error_code ec, size_t bytes)
+                local_.async_read_some(asio::buffer(rbuf_.data() + rlen_, rbuf_.size() - rlen_), [this, self = shared_from_this()](error_code ec, size_t bytes)
                 {
                     (*this)(ec, bytes, 3);
                 });

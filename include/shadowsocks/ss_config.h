@@ -16,9 +16,10 @@ struct ss_config
     std::string method;
     std::string password;
     uint32_t timeout;
+    std::optional<bool> no_delay;
     std::optional<uint32_t> workers;
     
-    SERIALIZATION_DEFINE(log_level, server_address, server_port, local_address, local_port, method, password, timeout, workers)
+    SERIALIZATION_DEFINE(log_level, server_address, server_port, local_address, local_port, method, password, timeout, no_delay, workers)
 };
 
 }

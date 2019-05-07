@@ -78,12 +78,16 @@ private:
             switch (start)
             {
             case 0:
+                // read shadowsocks header
+                local_.next_layer().set_option(tcp::no_delay{true});
+                local_.next_layer().set_option(asio::socket_base::keep_alive{true});
                 local_.async_read_some(asio::buffer(rbuf_.data() + rlen_, rbuf_.size() - rlen_), [this, start, self = shared_from_this()](error_code ec, size_t bytes)
                 {
                     (*this)(ec, bytes, start + 1);
                 });
                 return;
             case 1:
+                // parse shadowsocks header
                 rlen_ += bytes;
                 switch(request_.parse(rbuf_.data(), rlen_))
                 {
@@ -141,6 +145,17 @@ private:
                 }
             default:
             {
+                if(config_.no_delay.value_or(false))
+                {
+                    remote_.set_option(tcp::no_delay{true});
+                }
+                else
+                {
+                    local_.next_layer().set_option(tcp::no_delay{false});
+                }
+                
+                remote_.set_option(asio::socket_base::keep_alive{true});
+                
                 (tunnel_ = make_shared<tunnel_type>(local_, remote_, rbuf_, wbuf_, [this, self = shared_from_this()](){ active_ = chrono::steady_clock::now(); })).lock()->start(rlen_);
             }
                 return;
