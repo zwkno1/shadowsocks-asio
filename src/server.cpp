@@ -4,21 +4,53 @@
 #include <shadowsocks/server_session.h>
 #include <shadowsocks/client_session.h>
 #include <spdlog/spdlog.h>
+#include <boost/program_options.hpp>
+
+bool parse_command_line(int argc, char * argv[], std::string & configFile)
+{
+    namespace bp = boost::program_options;
+    try
+    {
+        bp::options_description desc("allowed options");
+        desc.add_options()
+        ("help,h", "Print help message.")
+        ("config,c", bp::value<std::string>()->value_name("<config_file>"), "The path to config file.");
+        
+        bp::variables_map vm;
+        bp::store(bp::parse_command_line(argc, argv, desc), vm);
+        bp::notify(vm);    
+        
+        if(vm.count("help") || (!vm.count("config")))
+        {
+            std::cerr << "usage:\n    " << argv[0] << " \n\n" << desc << std::endl;
+            return false;
+        }
+        
+        configFile = vm["config"].as<std::string>();
+        
+        return true;
+    }
+    catch(std::exception & e)
+    {
+        std::cerr << e.what() << std::endl;
+        return false;
+    }
+}
 
 int main(int argc, char *argv[])
 {
-    if(argc < 3 || (std::strcmp(argv[1], "-c") != 0))
+    std::string configFile;
+    if(!parse_command_line(argc, argv, configFile))
     {
-        std::cout << "Usage: " << argv[0] << " -c config_file" << std::endl;
         return -1;
     }
     
+    // locad config
     shadowsocks::ss_config config;
-    
     try
     {
         serialization::json_iarchive ia;
-        std::fstream f(argv[2], f.in|f.binary);
+        std::fstream f(configFile, f.in|f.binary);
         std::string content{std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>()};
         ia.load_data(content.data());
         serialization::unserialize(ia, config);
@@ -31,16 +63,14 @@ int main(int argc, char *argv[])
     
     spdlog::set_level(spdlog::level::from_str(config.log_level.value_or("info")));
     
-    const shadowsocks::cipher_info * info = shadowsocks::get_cipher_info(config.method);
-    if(info == nullptr)
+    config.cipher = shadowsocks::get_cipher_info(config.method);
+    if(!config.cipher)
     {
-        spdlog::info("cipher method not found: {}, use default: chacha20-ietf-poly1305", config.method);
-        config.method = "chacha20-ietf-poly1305";
-        info = shadowsocks::get_cipher_info(config.method);
+        std::cout << "cipher method not found: [" << config.method << "]." << std::endl;
+        return -1;
     }
+    config.key = shadowsocks::build_cipher_key(*config.cipher, config.password);
     spdlog::info("cipher method: {}", config.method);
-    
-    std::vector<uint8_t> key = shadowsocks::build_cipher_key(*info, config.password);
     
     boost::asio::io_context context{1};
     
@@ -61,12 +91,12 @@ int main(int argc, char *argv[])
     };
     start_timer();
     
-    shadowsocks::tcp_listener<std::function<void(boost::asio::ip::tcp::socket &&)>> listener(context, [info, &key, &config](boost::asio::ip::tcp::socket && s)
+    shadowsocks::tcp_listener<std::function<void(boost::asio::ip::tcp::socket &&)>> listener(context, [&config](boost::asio::ip::tcp::socket && s)
     {
 #ifdef BUILD_SHADOWSOCKS_SERVER
-        make_shared<shadowsocks::server_session>(std::move(s), *info, key, config)->start();
+        make_shared<shadowsocks::server_session>(std::move(s), config)->start();
 #else
-        make_shared<shadowsocks::client_session>(std::move(s), *info, key, config)->start();
+        make_shared<shadowsocks::client_session>(std::move(s), config)->start();
 #endif
     });
 
@@ -86,7 +116,7 @@ int main(int argc, char *argv[])
     }
     catch(const CryptoPP::Exception & e)
     {
-        spdlog::error("error: {}", e.what());
+        spdlog::error("cipher error: {}", e.what());
     }
     catch(boost::system::error_code & ec)
     {

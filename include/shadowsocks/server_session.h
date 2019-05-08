@@ -14,8 +14,8 @@ namespace shadowsocks
 class server_session : public enable_shared_from_this<server_session>
 {
 public:
-    server_session(tcp::socket && socket, const cipher_info & info, const std::vector<uint8_t> & key, const ss_config & config)
-        : local_(std::move(socket), info, key)
+    server_session(tcp::socket && socket, const ss_config & config)
+        : local_(std::move(socket), *config.cipher, config.key)
         , remote_(socket.get_io_context())
         , resolver_(socket.get_io_service())
         , rlen_(0)
