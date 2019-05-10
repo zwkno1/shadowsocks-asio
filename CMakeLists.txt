@@ -4,16 +4,22 @@ set(CMAKE_CXX_STANDARD 17)
 
 project(shadowsocks-asio)
 
-option(Boost_USE_STATIC_LIBS "use boost static libs" ON)
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules ${CMAKE_MODULE_PATH})
+
 include(${PROJECT_SOURCE_DIR}/cmake/external/cryptopp.cmake)
 
+find_package(Threads)
+
+option(Boost_USE_STATIC_LIBS "use boost static libs" ON)
 find_package(Boost 1.66 COMPONENTS system program_options REQUIRED)
 
-find_package(Threads)
+set(GPERFTOOLS_USE_STATIC_LIBS TRUE)
+find_package(gperftools REQUIRED)
 
 include_directories(${Boost_INCLUDE_DIR} 
 	${CryptoPP_INCLUDE_DIRS} 
 	${CryptoPP_INCLUDE_DIRS}/cryptopp
+	${GPERFTOOLS_INCLUDE_DIR}
 	./third_party/spdlog/include 
 	./third_party/serialization2/include
 	./include 
@@ -33,6 +39,7 @@ target_link_libraries(ss-local
 	${Boost_LIBRARIES}
 	${CryptoPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
+	${GPERFTOOLS_TCMALLOC_LIBRARY}
 	)
 	
 #ss-server
@@ -52,6 +59,7 @@ target_link_libraries(ss-server
 	${Boost_LIBRARIES}
 	${CryptoPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
+	${GPERFTOOLS_TCMALLOC_LIBRARY}
 	)
 
 

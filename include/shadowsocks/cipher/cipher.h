@@ -17,10 +17,7 @@
 namespace shadowsocks
 {
     
-enum : std::size_t
-{
-    max_cipher_block_size = 0x3fff,
-};
+const size_t max_cipher_block_size = 0x3fff;
 
 enum cipher_type : uint8_t
 {

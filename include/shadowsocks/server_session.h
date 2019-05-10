@@ -3,7 +3,7 @@
 #include <vector>
 
 #include <shadowsocks/asio.h>
-#include <shadowsocks/stream/stream.h>
+#include <shadowsocks/cipher/stream.h>
 #include <shadowsocks/ss_config.h>
 #include <shadowsocks/proto.h>
 #include <shadowsocks/tunnel.h>
@@ -72,18 +72,21 @@ private:
         {
             return;
         }
+        
+        spdlog::debug("start: {}", start);
 
+        start_ = start;
         for(;;)
         {
-            switch (start)
+            switch (start_)
             {
             case 0:
                 // read shadowsocks header
                 local_.next_layer().set_option(tcp::no_delay{true});
                 local_.next_layer().set_option(asio::socket_base::keep_alive{true});
-                local_.async_read_some(asio::buffer(rbuf_.data() + rlen_, rbuf_.size() - rlen_), [this, start, self = shared_from_this()](error_code ec, size_t bytes)
+                local_.async_read_some(asio::buffer(rbuf_.data() + rlen_, rbuf_.size() - rlen_), [this, self = shared_from_this()](error_code ec, size_t bytes)
                 {
-                    (*this)(ec, bytes, start + 1);
+                    (*this)(ec, bytes, ++start_);
                 });
                 return;
             case 1:
@@ -105,7 +108,7 @@ private:
                     case DOMAINNAME:
                     {
                         //resolve
-                        resolver_.async_resolve(request_.domain(), std::to_string(request_.port()), [this, self = shared_from_this(), start](error_code ec, tcp::resolver::results_type result)
+                        resolver_.async_resolve(request_.domain(), std::to_string(request_.port()), [this, self = shared_from_this()](error_code ec, tcp::resolver::results_type result)
                         {
                             if(ec || result.empty())
                             {
@@ -113,9 +116,9 @@ private:
                             }
 
                             remote_.open(result.begin()->endpoint().protocol());
-                            remote_.async_connect(*result.begin(), [this, self = shared_from_this(), start](error_code ec)
+                            remote_.async_connect(*result.begin(), [this, self = shared_from_this()](error_code ec)
                             {
-                                (*this)(ec, 0, start + 1);
+                                (*this)(ec, 0, ++start_);
                             });
 
                         });
@@ -126,9 +129,9 @@ private:
                     {
                         tcp::endpoint ep{request_.address(), request_.port()};
                         remote_.open(ep.protocol());
-                        remote_.async_connect(ep, [this, self = shared_from_this(), start](error_code ec)
+                        remote_.async_connect(ep, [this, self = shared_from_this()](error_code ec)
                         {
-                            (*this)(ec, 0, start + 1);
+                            (*this)(ec, 0, ++start_);
                         });
                         return;
                     }
@@ -137,13 +140,13 @@ private:
                     }
                 }
                 case parse_need_more:
-                    start = 0;
+                    start_ = 0;
                     continue;
                 default:
                     spdlog::error("bad proto");
                     return;
                 }
-            default:
+            case 2:
             {
                 if(config_.no_delay.value_or(false))
                 {
@@ -159,6 +162,8 @@ private:
                 (tunnel_ = make_shared<tunnel_type>(local_, remote_, rbuf_, wbuf_, [this, self = shared_from_this()](){ active_ = chrono::steady_clock::now(); })).lock()->start(rlen_);
             }
                 return;
+            default:
+                spdlog::error("bug");
             }
         }
     }
@@ -186,6 +191,8 @@ private:
     chrono::steady_clock::time_point active_;
     
     const ss_config & config_;
+    
+    int start_;
 };
 
 }

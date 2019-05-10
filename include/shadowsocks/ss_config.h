@@ -4,7 +4,7 @@
 
 #include <serialization/serialization.h>
 
-#include <shadowsocks/stream/cipher.h>
+#include <shadowsocks/cipher/cipher.h>
 
 namespace shadowsocks
 {

@@ -21,23 +21,22 @@ public:
         error_code ignored_ec;
         if constexpr(std::is_same<tcp::socket, std::decay_t<decltype(s2)>>::value)
         {
-            auto const & ep = s1_.next_layer().remote_endpoint(ignored_ec);
+            auto const & ep1 = s1_.next_layer().remote_endpoint(ignored_ec);
             auto const & ep2 = s2_.local_endpoint(ignored_ec);
-            name_ = ep.address().to_string() + ":" + std::to_string(ep.port()) + " -> " + 
-            ep2.address().to_string() + ":" + std::to_string(ep2.port());
+            ep1_ = ep1.address().to_string() + ":" + std::to_string(ep1.port());
+            ep2_ = ep2.address().to_string() + ":" + std::to_string(ep2.port());
         }
         else
         {
-            auto const & ep = s1_.remote_endpoint(ignored_ec);
+            auto const & ep1 = s1_.remote_endpoint(ignored_ec);
             auto const & ep2 = s2_.next_layer().local_endpoint(ignored_ec);
-            name_ = ep.address().to_string() + ":" + std::to_string(ep.port()) + " -> " + 
-            ep2.address().to_string() + ":" + std::to_string(ep2.port());
+            ep1_ = ep1.address().to_string() + ":" + std::to_string(ep1.port());
+            ep2_ = ep2.address().to_string() + ":" + std::to_string(ep2.port());
         }
     }
 
     void start(size_t buf1_size = 0, size_t buf2_size = 0)
     {
-        spdlog::debug("start tunnel {} , {} -> {}", name_, buf1_size, buf2_size);
         if(buf1_size == 0)
         {
             handle_write_s2(error_code{}, 0);
@@ -59,7 +58,7 @@ public:
 
     void handle_read_s1(error_code ec, size_t bytes)
     {
-        spdlog::debug("handle_read_s1 {}, ec: {} , bytes: {}", name_, ec.message(), bytes);
+        spdlog::debug("[ {} -> {} ] (ec: {} , bytes: {})", ep1_, ep2_, ec.message(), bytes);
         if(ec)
         {
             return;
@@ -75,7 +74,7 @@ public:
 
     void handle_write_s2(error_code ec, size_t bytes)
     {
-        spdlog::debug("handle_write_s2 {}, ec: {} , bytes: {}", name_, ec.message(), bytes);
+        spdlog::debug("[ {} >> {} ] (ec: {} , bytes: {})", ep1_, ep2_, ec.message(), bytes);
         if(ec)
         {
             return;
@@ -89,7 +88,7 @@ public:
 
     void handle_read_s2(error_code ec, size_t bytes)
     {
-        spdlog::debug("handle_read_s2 {}, ec: {} , bytes: {}", name_, ec.message(), bytes);
+        spdlog::debug("[ {} -> {} ] (ec: {} , bytes: {})", ep2_, ep1_, ec.message(), bytes);
         if(ec)
         {
             return;
@@ -105,7 +104,7 @@ public:
 
     void handle_write_s1(error_code ec, size_t bytes)
     {
-        spdlog::debug("handle_write_s1 {}, ec: {} , bytes: {}", name_, ec.message(), bytes);
+        spdlog::debug("[ {} >> {} ] (ec: {} , bytes: {})", ep2_, ep1_, ec.message(), bytes);
         if(ec)
         {
             return;
@@ -122,7 +121,8 @@ public:
     Buffer & buf1_;
     Buffer & buf2_;
     Handler handler_;
-    std::string name_;
+    std::string ep1_;
+    std::string ep2_;
 };
 
 }

@@ -6,7 +6,7 @@
 #include <spdlog/spdlog.h>
 
 #include <shadowsocks/asio.h>
-#include <shadowsocks/stream/stream.h>
+#include <shadowsocks/cipher/stream.h>
 #include <shadowsocks/ss_config.h>
 #include <shadowsocks/proto.h>
 #include <shadowsocks/tunnel.h>
@@ -92,11 +92,13 @@ private:
                 return;
             case 1:
                 // parse socks5 handshake
+                spdlog::debug("socks5 handshake: {}", bytes);
                 rlen_ += bytes;
                 switch(handshake_.parse(rbuf_.data(), rlen_))
                 {
                 case parse_ok:
                 {
+                    spdlog::debug("parse socks5 handshake ok");
                     size_t request_len = handshake_.bytes();
                     rlen_ -= request_len;
                     if(rlen_ != 0)
@@ -121,6 +123,7 @@ private:
                     return;
                 }
                 case parse_need_more:
+                    spdlog::debug("parse socks5 handshake needmore");
                     --start_;
                     continue;
                 default:
@@ -171,6 +174,7 @@ private:
                     wbuf_[2] = 0;
                     wbuf_[3] = IPV4; 
                     
+                    spdlog::debug("parse socks5 request ok, cmd: {}", (size_t)request_.cmd());
                     if(request_.cmd() == SOCKS5_UDP_ASSOCIATE)
                     {
                         tcp::endpoint ep = local_.local_endpoint();
@@ -206,6 +210,7 @@ private:
                     return;
                 }
                 case parse_need_more:
+                    spdlog::debug("parse socks5 request needmore");
                     --start_;
                     continue;
                 default:

@@ -16,9 +16,9 @@
 
 #include <spdlog/spdlog.h>
 
-#include <shadowsocks/stream/cipher.h>
-#include <shadowsocks/stream/detail/cipher_ops.h>
-#include <shadowsocks/stream/error.h>
+#include <shadowsocks/cipher/cipher.h>
+#include <shadowsocks/cipher/detail/cipher_ops.h>
+#include <shadowsocks/cipher/error.h>
 
 namespace shadowsocks
 {
@@ -156,41 +156,46 @@ public:
         write_buf_size_ = 0;
     }
     
-    void encrypt(const uint8_t * in, size_t & in_size)
+    void encrypt(boost::asio::const_buffer & in, boost::system::error_code & ec)
     {
+        boost::asio::mutable_buffer out{write_buf_.data() + write_buf_size_, write_buf_.size() - write_buf_size_};
+        
         std::visit([&](auto&& arg)
         {
             if constexpr(cipher_pair_type_traits<decltype(arg)>::value == STREAM)
             {
-                encrypt_stream(arg.encryption, enc_init_, key_, info_.iv_length_, in, in_size, write_buf_.data(), write_buf_size_);
+                stream_encrypt_some(arg.encryption, key_, info_.iv_length_, enc_init_, in, out, ec);
             }
             else
             {
-                encrypt_aead(arg.encryption, enc_init_, key_, enc_iv_, in, in_size, write_buf_.data(), write_buf_size_);
+                aead_encrypt_some(arg.encryption, key_, enc_iv_, enc_init_, in, out, ec);
             }
         }, cipher_);
+        
+        write_buf_size_ = write_buf_.size() - out.size();
     }
     
-    void decrypt(uint8_t *out, size_t & out_size, boost::system::error_code & ec)
+    void decrypt(boost::asio::mutable_buffer & out, boost::system::error_code & ec)
     {
+        boost::asio::const_buffer in{ read_buf_.data(), read_buf_size_};
+        
         std::visit([&](auto&& arg)
         {
-            size_t dec_size = read_buf_size_;
             if constexpr(cipher_pair_type_traits<decltype(arg)>::value == STREAM)
             {
-                decrypt_stream(arg.decryption, dec_init_, key_, info_.iv_length_, read_buf_.data(), dec_size, out, out_size);
+                stream_decrypt_some(arg.decryption, key_, info_.iv_length_, dec_init_, in, out, ec);
             }
             else
             {
-                decrypt_aead(arg.decryption, dec_init_, key_, dec_iv_, dec_block_size_, read_buf_.data(), dec_size, out, out_size, ec);
-            }
-            read_buf_size_ -= dec_size;
-            
-            if((dec_size != 0) && (read_buf_size_ != 0))
-            {
-                std::memmove(read_buf_.data(), read_buf_.data() + dec_size, read_buf_size_);
+                aead_decrypt_some(arg.decryption, key_, dec_iv_, dec_init_, dec_block_size_, in, out, ec);
             }
         }, cipher_);
+        
+        if((read_buf_size_ != in.size()) && in.size() != 0)
+        {
+            std::memmove(read_buf_.data(), in.data(), in.size());
+        }
+        read_buf_size_ = in.size();
     }
     
 private:

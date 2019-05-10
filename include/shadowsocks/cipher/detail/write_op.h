@@ -2,7 +2,7 @@
 
 #include <boost/asio.hpp>
 
-#include <shadowsocks/stream/detail/cipher_context.h>
+#include <shadowsocks/cipher/detail/cipher_context.h>
 
 namespace shadowsocks
 {
@@ -37,9 +37,9 @@ public:
                 return;
             default:
                 boost::asio::const_buffer buffer(*boost::asio::buffer_sequence_begin(buffers_));
-                size_t size = buffer.size();
-                context_.encrypt(reinterpret_cast<const uint8_t *>(buffer.data()), size);
-                bytes_ = size;
+                // ignored, never error
+                context_.encrypt(buffer, ec);
+                bytes_ = boost::asio::buffer_sequence_begin(buffers_)->size() - buffer.size();
                 boost::asio::async_write(next_layer_, context_.get_write_buffer(), std::move(*this));
                 return;
             }

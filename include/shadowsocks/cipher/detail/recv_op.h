@@ -2,7 +2,7 @@
 
 #include <boost/asio.hpp>
 
-#include <shadowsocks/stream/detail/cipher_context.h>
+#include <shadowsocks/cipher/detail/cipher_context.h>
 
 namespace shadowsocks
 {
@@ -10,10 +10,10 @@ namespace detail
 {
 
 template <typename Stream, typename MutableBufferSequence, typename Handler>
-class read_op
+class recv_op
 {
 public:
-    read_op(Stream & next_layer, cipher_context & ctx, const MutableBufferSequence & buffers, Handler & h)
+    recv_op(Stream & next_layer, cipher_context & ctx, const MutableBufferSequence & buffers, Handler & h)
         : next_layer_(next_layer)
         , context_(ctx)
         , buffers_(buffers)
@@ -46,15 +46,16 @@ public:
             {
                 boost::asio::mutable_buffer buffer(*boost::asio::buffer_sequence_begin(buffers_));
                 
-                if(ec)
+                bytes_ = buffer.size();
+                context_.decrypt(reinterpret_cast<uint8_t *>(buffer.data()), bytes_, ec);
+                
+                if(ec && (ec != ::shadowsocks::error::cipher_need_more))
                 {
                     ec_ = ec;
                     (*this)();
                     return;
                 }
                 
-                bytes_ = buffer.size();
-                context_.decrypt(reinterpret_cast<uint8_t *>(buffer.data()), bytes_, ec);
                 if(bytes_ != 0)
                 {
                     (*this)();
@@ -68,6 +69,7 @@ public:
                 first_ = false;
                 if(ec)
                 {
+                    ec_ = ec;
                     (*this)();
                     return;
                 }
@@ -95,9 +97,9 @@ private:
 };
 
 template <typename Stream, typename MutableBufferSequence, typename Handler>
-inline void async_read(Stream& next_layer, cipher_context & ctx, const MutableBufferSequence & buffers, Handler& handler)
+inline void async_recv(Stream& next_layer, cipher_context & ctx, const MutableBufferSequence & buffers, Handler& handler)
 {
-    read_op<Stream, MutableBufferSequence, Handler>{next_layer, ctx, buffers, handler}(boost::system::error_code{}, 0, 1);
+    recv_op<Stream, MutableBufferSequence, Handler>{next_layer, ctx, buffers, handler}(boost::system::error_code{}, 0, 1);
 }
 
 // add later
