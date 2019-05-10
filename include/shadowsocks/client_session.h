@@ -74,18 +74,20 @@ private:
         {
             return;
         }
-
+        spdlog::debug("start : {}", start);
+        
+        start_ = start;
         for(;;)
         {
-            switch (start)
+            switch(start_)
             {
             case 0:
                 // read local socks5 handshake
                 local_.set_option(tcp::no_delay{true});
                 local_.set_option(asio::socket_base::keep_alive{true});
-                local_.async_read_some(asio::buffer(rbuf_.data() + rlen_, rbuf_.size() - rlen_), [this, start, self = shared_from_this()](error_code ec, size_t bytes)
+                local_.async_read_some(asio::buffer(rbuf_.data() + rlen_, rbuf_.size() - rlen_), [this, self = shared_from_this()](error_code ec, size_t bytes)
                 {
-                    (*this)(ec, bytes, start + 1);
+                    (*this)(ec, bytes, ++start_);
                 });
                 return;
             case 1:
@@ -112,47 +114,34 @@ private:
                     wbuf_[0] = SOCKS5_VERSION;
                     wbuf_[1] = 0;
                     
-                    boost::asio::async_write(local_, boost::asio::buffer(wbuf_.data(), 2), [this, self = shared_from_this(), start](error_code ec, size_t bytes)
+                    boost::asio::async_write(local_, boost::asio::buffer(wbuf_.data(), 2), [this, self = shared_from_this()](error_code ec, size_t bytes)
                     {
-                        (*this)(ec, bytes, start + 1);
+                        (*this)(ec, bytes, ++start_);
                     });
                     return;
                 }
                 case parse_need_more:
-                    start = 0;
+                    --start_;
                     continue;
                 default:
                     spdlog::error("bad proto, state: {}", start);
                     return;
                 }
             case 2:
-            {
-                // connect to ss-server 
-                tcp::endpoint endpoint = {asio::ip::make_address(config_.server_address), config_.server_port};
-                remote_.next_layer().async_connect(endpoint, [this, self = shared_from_this(), start](error_code ec)
+                // read local socks5 request
+                spdlog::debug("read socks5 request, rlen: {}", rlen_);
+                local_.async_read_some(asio::buffer(rbuf_.data() + rlen_, rbuf_.size() - rlen_), [this, self = shared_from_this()](error_code ec, size_t bytes)
                 {
-                    (*this)(ec, 0, start + 1);
+                    (*this)(ec, bytes, ++start_);
                 });
                 return;
-            }
             case 3:
-                // parse socks5 request
-                spdlog::debug("parse socks5 request");
+                // parse local socks5 request
                 rlen_ += bytes;
                 switch(request_.parse(rbuf_.data(), rlen_))
                 {
                 case parse_ok:
                 {
-                    // remove socks5 header
-                    rlen_ -= 3;
-                    if(rlen_ != 0)
-                    {
-                        std::memmove(rbuf_.data(), rbuf_.data()+3, rlen_);
-                    }
-                    
-                    spdlog::debug("parse socks5 request ok, rlen: {}", rlen_);
-                    spdlog::debug("type: {}, bytes: {}, content: {}", request_.type(), request_.bytes(), std::string{(const char *)rbuf_.data(), rlen_});
-                    
                     // local socks5 response
                     /*
                      *    +----+-----+-------+------+----------+----------+
@@ -177,40 +166,93 @@ private:
                      *      o  ATYP   address type of following address
                      */
                     size_t wlen = 10;
-                    std::memset(wbuf_.data(), 0, wlen);
                     wbuf_[0] = SOCKS5_VERSION;
-                    wbuf_[3] = 1;  // ipv4
-                        
-                    if(config_.no_delay.value_or(false))
-                    {
-                        remote_.next_layer().set_option(tcp::no_delay{true});
-                    }
-                    else
-                    {
-                        local_.set_option(tcp::no_delay{false});
-                    }
-                    remote_.next_layer().set_option(asio::socket_base::keep_alive{true});
+                    wbuf_[1] = 0;
+                    wbuf_[2] = 0;
+                    wbuf_[3] = IPV4; 
                     
-                    // start tunnel
-                    (tunnel_ = make_shared<tunnel_type>(local_, remote_, rbuf_, wbuf_, [this, self = shared_from_this()](){ active_ = chrono::steady_clock::now(); })).lock()->start(rlen_, wlen);
+                    if(request_.cmd() == SOCKS5_UDP_ASSOCIATE)
+                    {
+                        tcp::endpoint ep = local_.local_endpoint();
+                        if(ep.address().is_v4())
+                        {
+                            wbuf_[3] = IPV4;
+                            auto addr = ep.address().to_v4().to_bytes();
+                            std::memcpy(&wbuf_[4], addr.data(), addr.size());
+                            wbuf_[4 + addr.size()] = ((ep.port() >> 8) & 0xff);
+                            wbuf_[5 + addr.size()] = (ep.port() & 0xff);
+                            wlen = 6 + addr.size();
+                        }
+                        else
+                        {
+                            wbuf_[3] = IPV6;
+                            auto addr = ep.address().to_v6().to_bytes();
+                            std::memcpy(&wbuf_[4], addr.data(), addr.size());
+                            wbuf_[4 + addr.size()] = ((ep.port() >> 8) & 0xff);
+                            wbuf_[5 + addr.size()] = (ep.port() & 0xff);
+                            wlen = 6 + addr.size();
+                        }
+                    }
+                    else if(request_.cmd() != SOCKS5_CONNECT)
+                    {
+                        // not supported
+                        wbuf_[1] = 7;
+                    }
+                    
+                    asio::async_write(local_, asio::buffer(wbuf_.data(), wlen), [this, self = shared_from_this()](error_code ec, size_t bytes)
+                    {
+                        (*this)(ec, bytes, ++start_);
+                    });
                     return;
                 }
                 case parse_need_more:
-                    start = 4;
-                    spdlog::debug("parse socks5 request need more, rlen: {}", rlen_);
+                    --start_;
                     continue;
                 default:
                     spdlog::error("bad proto, state: {}", start);
                     return;
                 }
             case 4:
-                // read local socks5 request
-                spdlog::debug("read socks5 request, rlen: {}", rlen_);
-                local_.async_read_some(asio::buffer(rbuf_.data() + rlen_, rbuf_.size() - rlen_), [this, self = shared_from_this()](error_code ec, size_t bytes)
+            {
+                // local socks5 response finished
+                if(request_.cmd() == SOCKS5_UDP_ASSOCIATE)
                 {
-                    (*this)(ec, bytes, 3);
-                });
+                    local_.async_wait(tcp::socket::wait_error, [self = shared_from_this()](error_code ec)
+                    {
+                        //udp finished
+                    });
+                }
+                else if(request_.cmd() == SOCKS5_CONNECT)
+                {
+                    // connect to ss-server 
+                    tcp::endpoint endpoint = {asio::ip::make_address(config_.server_address), config_.server_port};
+                    remote_.next_layer().async_connect(endpoint, [this, self = shared_from_this()](error_code ec)
+                    {
+                        (*this)(ec, 0, ++start_);
+                    });
+                }
                 return;
+            }
+            case 5:
+            {
+                // start socks5 connect
+                rlen_ -= 3;
+                std::memmove(rbuf_.data(), rbuf_.data()+3, rlen_);
+                
+                if(config_.no_delay.value_or(false))
+                {
+                    remote_.next_layer().set_option(tcp::no_delay{true});
+                }
+                else
+                {
+                    local_.set_option(tcp::no_delay{false});
+                }
+                remote_.next_layer().set_option(asio::socket_base::keep_alive{true});
+                
+                // start tunnel
+                (tunnel_ = make_shared<tunnel_type>(local_, remote_, rbuf_, wbuf_, [this, self = shared_from_this()](){ active_ = chrono::steady_clock::now(); })).lock()->start(rlen_, 0);
+                return;
+            }
             default:
                 spdlog::error("bug");
                 return;
@@ -241,6 +283,8 @@ private:
     chrono::steady_clock::time_point active_;
     
     const ss_config & config_;
+    
+    int start_;
 };
 
 }

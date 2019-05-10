@@ -29,10 +29,11 @@ enum AdressType : uint8_t
     IPV6 = 0x04,
 };
 
-enum
-{
-    SOCKS5_VERSION = 5,
-};
+const uint8_t SOCKS5_VERSION = 5;
+
+const uint8_t SOCKS5_CONNECT = 1;
+const uint8_t SOCKS5_BIND = 2;
+const uint8_t SOCKS5_UDP_ASSOCIATE = 3;
 
 class request
 {
