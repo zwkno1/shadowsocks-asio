@@ -13,6 +13,8 @@ template <typename Stream>
 class stream
 {
 public:
+	typedef typename Stream::executor_type executor_type;
+
     template<typename Arg>
     stream(Arg && arg, const cipher_info & info, const std::vector<uint8_t> & key)
         : next_layer_(std::move(arg))

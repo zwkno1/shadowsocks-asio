@@ -16,10 +16,10 @@ class server_session : public enable_shared_from_this<server_session>
 public:
     server_session(tcp::socket && socket, const ss_config & config)
         : local_(std::move(socket), *config.cipher, config.key)
-        , remote_(socket.get_io_context())
-        , resolver_(socket.get_io_service())
+        , remote_(socket.get_executor())
+        , resolver_(socket.get_executor())
         , rlen_(0)
-        , timer_(socket.get_io_context())
+        , timer_(socket.get_executor())
         , active_(chrono::steady_clock::now())
         , config_(config)
     {

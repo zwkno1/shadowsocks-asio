@@ -19,9 +19,9 @@ class client_session : public enable_shared_from_this<client_session>
 public:
     client_session(tcp::socket && socket, const ss_config & config)
         : local_(std::move(socket))
-        , remote_(tcp::socket{socket.get_io_context()}, *config.cipher, config.key)
+        , remote_(tcp::socket{socket.get_executor()}, *config.cipher, config.key)
         , rlen_(0)
-        , timer_(socket.get_io_context())
+        , timer_(socket.get_executor())
         , active_(chrono::steady_clock::now())
         , config_(config)
     {

@@ -32,7 +32,7 @@ public:
         acceptor_.close();
     }
 
-    asio::io_context & get_io_context()
+    asio::io_context & get_executor()
     {
         return io_context_;
     }
