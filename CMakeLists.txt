@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(shadowsocks-asio)
 
@@ -11,7 +12,7 @@ include(${PROJECT_SOURCE_DIR}/cmake/external/cryptopp.cmake)
 find_package(Threads)
 
 option(Boost_USE_STATIC_LIBS "use boost static libs" ON)
-find_package(Boost 1.66 COMPONENTS system program_options REQUIRED)
+find_package(Boost 1.64 COMPONENTS system program_options REQUIRED)
 
 set(GPERFTOOLS_USE_STATIC_LIBS TRUE)
 find_package(gperftools REQUIRED)
