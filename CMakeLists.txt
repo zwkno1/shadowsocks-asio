@@ -2,25 +2,28 @@ cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(BOOST_ROOT /usr/include/boost169)
 
 project(shadowsocks-asio)
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules ${CMAKE_MODULE_PATH})
 
 include(${PROJECT_SOURCE_DIR}/cmake/external/cryptopp.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/external/spdlog.cmake)
 
 find_package(Threads)
 
 option(Boost_USE_STATIC_LIBS "use boost static libs" ON)
-find_package(Boost 1.64 COMPONENTS system program_options REQUIRED)
+find_package(Boost 1.69 COMPONENTS system program_options REQUIRED)
 
 set(GPERFTOOLS_USE_STATIC_LIBS TRUE)
 find_package(gperftools REQUIRED)
 
 include_directories(${Boost_INCLUDE_DIR} 
-	${CryptoPP_INCLUDE_DIRS} 
-	${CryptoPP_INCLUDE_DIRS}/cryptopp
+	${CRYPTOPP_INCLUDE_DIRS} 
+	#${CRYPTOPP_INCLUDE_DIRS}/CRYPTOPP
 	${GPERFTOOLS_INCLUDE_DIR}
+	${SPDLOG_INCLUDE_DIRS}
 	./third_party/spdlog/include 
 	./third_party/serialization2/include
 	./include 
@@ -34,11 +37,11 @@ add_executable(ss-local
 	${HEADER_FILES}
 	src/server.cpp
 	)
-add_dependencies(ss-local CryptoPP)
+add_dependencies(ss-local CRYPTOPP SPDLOG)
 
 target_link_libraries(ss-local
 	${Boost_LIBRARIES}
-	${CryptoPP_LIBRARIES}
+	${CRYPTOPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
 	${GPERFTOOLS_TCMALLOC_LIBRARY}
 	)
@@ -48,7 +51,7 @@ add_executable(ss-server
 	${HEADER_FILES}
 	src/server.cpp
 	)
-add_dependencies(ss-server CryptoPP)
+add_dependencies(ss-server CRYPTOPP SPDLOG)
 
 set_target_properties(
     ss-server
@@ -58,7 +61,7 @@ set_target_properties(
 
 target_link_libraries(ss-server
 	${Boost_LIBRARIES}
-	${CryptoPP_LIBRARIES}
+	${CRYPTOPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
 	${GPERFTOOLS_TCMALLOC_LIBRARY}
 	)
@@ -70,9 +73,9 @@ add_executable(cipher_test
 	${HEADER_FILES}
 	test/cipher_test.cpp
 	)
-add_dependencies(cipher_test CryptoPP)
+add_dependencies(cipher_test CRYPTOPP)
 target_link_libraries(cipher_test
-	${CryptoPP_LIBRARIES}
+	${CRYPTOPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
 	)
 endif()

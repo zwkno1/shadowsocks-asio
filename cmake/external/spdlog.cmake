@@ -7,10 +7,12 @@ set(SPDLOG_TAG 1.8.2)
 set(SPDLOG_URL https://github.com/gabime/spdlog/archive/v${SPDLOG_TAG}.tar.gz)
 set(SPDLOG_MD5 22518fb28d4be66c92a703c67d99b1d1)
 
-set(SPDLOG_INCLUDE_DIRS ${SPDLOG_INSTALL}/include)
+set(SPDLOG_INSTALL ${CMAKE_CURRENT_BINARY_DIR}/external/spdlog/install)
+#set(SPDLOG_INCLUDE_DIRS ${SPDLOG_INSTALL}/include)
+set(SPDLOG_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/external/spdlog/src/SPDLOG/include/)
 
 ExternalProject_Add(SPDLOG
-	PREFIX external/SPDLOG
+	PREFIX external/spdlog
 	DOWNLOAD_DIR "${DOWNLOAD_LOCATION}"
 	#GIT_REPOSITORY ${SPDLOG_URL}
 	#GIT_TAG ${SPDLOG_TAG}
@@ -23,5 +25,6 @@ ExternalProject_Add(SPDLOG
 	BUILD_COMMAND ""
 	#INSTALL_DIR ${SPDLOG_INSTALL}
 	#INSTALL_COMMAND PREFIX=${SPDLOG_INSTALL} $(MAKE) install
+	INSTALL_COMMAND ""
 	)
 
