@@ -1,8 +1,7 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.2)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(BOOST_ROOT /usr/include/boost169)
 
 project(shadowsocks-asio)
 
@@ -13,18 +12,20 @@ include(${PROJECT_SOURCE_DIR}/cmake/external/spdlog.cmake)
 
 find_package(Threads)
 
-option(Boost_USE_STATIC_LIBS "use boost static libs" ON)
-find_package(Boost 1.69 COMPONENTS system program_options REQUIRED)
+set(Boost_INCLUDE_DIR /usr/include/boost169)
+set(BOOST_LIBRARYDIR /usr/lib64/boost169)
+#option(Boost_USE_STATIC_LIBS "use boost static libs" ON)
+find_package(Boost 1.69 COMPONENTS system program_options coroutine thread REQUIRED)
+#message("-------${Boost_INCLUDE_DIR}-----")
+#message("-------${Boost_LIBRARIES}-------")
 
 set(GPERFTOOLS_USE_STATIC_LIBS TRUE)
 find_package(gperftools REQUIRED)
 
 include_directories(${Boost_INCLUDE_DIR} 
 	${CRYPTOPP_INCLUDE_DIRS} 
-	#${CRYPTOPP_INCLUDE_DIRS}/CRYPTOPP
 	${GPERFTOOLS_INCLUDE_DIR}
 	${SPDLOG_INCLUDE_DIRS}
-	./third_party/spdlog/include 
 	./third_party/serialization2/include
 	./include 
 	)
@@ -33,23 +34,23 @@ file(GLOB_RECURSE HEADER_FILES "./include/*.h ./include/detail/*.h")
 add_custom_target(headers SOURCES ${HEADER_FILES})
 
 # ss-local
-add_executable(ss-local
-	${HEADER_FILES}
-	src/server.cpp
-	)
-add_dependencies(ss-local CRYPTOPP SPDLOG)
+#add_executable(ss-local
+#	${HEADER_FILES}
+#	src/main.cpp
+#	)
+#add_dependencies(ss-local CRYPTOPP SPDLOG)
+#
+#target_link_libraries(ss-local
+#	${Boost_LIBRARIES}
+#	${CRYPTOPP_LIBRARIES}
+#	${CMAKE_THREAD_LIBS_INIT}
+#	${GPERFTOOLS_TCMALLOC_LIBRARY}
+#	)
 
-target_link_libraries(ss-local
-	${Boost_LIBRARIES}
-	${CRYPTOPP_LIBRARIES}
-	${CMAKE_THREAD_LIBS_INIT}
-	${GPERFTOOLS_TCMALLOC_LIBRARY}
-	)
-	
 #ss-server
 add_executable(ss-server 
 	${HEADER_FILES}
-	src/server.cpp
+	src/main.cpp
 	)
 add_dependencies(ss-server CRYPTOPP SPDLOG)
 
@@ -67,6 +68,9 @@ target_link_libraries(ss-server
 	)
 
 
+add_definitions(
+	-DBOOST_COROUTINES_NO_DEPRECATION_WARNING=1
+	)
 option(SHADOWSOCKS_ENABLE_TEST "build test" OFF)
 if(SHADOWSOCKS_ENABLE_TEST STREQUAL "ON")
 add_executable(cipher_test

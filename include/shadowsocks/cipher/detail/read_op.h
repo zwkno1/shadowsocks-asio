@@ -2,7 +2,8 @@
 
 #include <boost/asio.hpp>
 
-#include <shadowsocks/cipher/detail/cipher_ops.h>
+#include <shadowsocks/cipher/cipher.h>
+#include <iostream>
 
 namespace shadowsocks
 {
@@ -13,69 +14,54 @@ template <typename Stream, typename MutableBufferSequence, typename Handler>
 class read_op
 {
 public:
-    read_op(Stream & next_layer, cipher_context & ctx, const MutableBufferSequence & buffers, Handler & h)
+    read_op(Stream & next_layer, cipher_context & ctx, asio::streambuf & rbuf, const MutableBufferSequence & buffers, Handler & h)
         : next_layer_(next_layer)
         , context_(ctx)
+        , rbuf_(rbuf)
         , buffers_(buffers)
         , handler_(std::move(h))
-        , bytes_(0)
-        , first_(true)
+        , nbytes_(0)
     {
     }
 
-    void operator()()
-    {
-        if(first_)
-        {
-            first_ = false;
-            boost::asio::post(next_layer_.get_executor(), std::move(*this));
-        }
-        else
-        {
-            handler_(ec_, bytes_);
-        }
+    void operator()() {
+        handler_(ec_, nbytes_);
     }
-    
-	void operator()(boost::system::error_code ec, std::size_t bytes, int start = 0)
+
+	void operator()(boost::system::error_code ec, std::size_t nbytes, int start = 0)
     {
         for(;;)
         {
             switch (start)
             {
             case 1:
+            case 2:
             {
-                boost::asio::mutable_buffer buffer(*boost::asio::buffer_sequence_begin(buffers_));
-                
-                context_.decrypt(buffer, ec);
-                bytes_ = boost::asio::buffer_sequence_begin(buffers_)->size() - buffer.size();
-                
-                if(ec && (ec != ::shadowsocks::error::cipher_need_more))
-                {
-                    ec_ = ec;
-                    (*this)();
+                context_.decrypt(rbuf_, *asio::buffer_sequence_begin(buffers_), ec_, nbytes_);
+                if(!ec_ && nbytes_ == 0) {
+                    next_layer_.async_read_some(rbuf_.prepare(32768-rbuf_.size()), std::move(*this));
                     return;
                 }
-                
-                if(bytes_ != 0)
-                {
-                    (*this)();
-                    return;
+
+                if (start == 1) {
+                  asio::post(next_layer_.get_executor(), std::move(*this));
+                  return;
                 }
-                
-                next_layer_.async_read_some(context_.get_read_buffer(), std::move(*this));
-            }
+
+                (*this)();
                 return;
+            }
             case 0:
-                first_ = false;
-                if(ec)
-                {
+            {
+                rbuf_.commit(nbytes);
+                if(ec) {
                     ec_ = ec;
                     (*this)();
                     return;
                 }
-                context_.handle_read(bytes);
-                start = 1;
+                start = 2;
                 break;
+            }
             }
         }
     }
@@ -85,21 +71,21 @@ private:
 
     cipher_context & context_;
 
+    asio::streambuf & rbuf_;
+
     MutableBufferSequence buffers_;
 
     Handler handler_;
     
     boost::system::error_code ec_;
     
-    size_t bytes_;
-    
-    bool first_;
+    size_t nbytes_;
 };
 
 template <typename Stream, typename MutableBufferSequence, typename Handler>
-inline void async_read(Stream& next_layer, cipher_context & ctx, const MutableBufferSequence & buffers, Handler& handler)
+inline void async_read(Stream& next_layer, cipher_context & ctx, asio::streambuf & rbuf, const MutableBufferSequence & buffers, Handler& handler)
 {
-    read_op<Stream, MutableBufferSequence, Handler>{next_layer, ctx, buffers, handler}(boost::system::error_code{}, 0, 1);
+    read_op<Stream, MutableBufferSequence, Handler>{next_layer, ctx, rbuf, buffers, handler}(error_code{}, 0, 1);
 }
 
 // add later

@@ -12,9 +12,10 @@ namespace shadowsocks
 // 0x01: host is a 4-byte IPv4 address.
 // 0x03: host is a variable length string, starting with a 1-byte length, followed by up to 255-byte domain name.
 // 0x04: host is a 16-byte IPv6 address.
+
 enum parse_result : uint8_t
 {
-    parse_ok,
+    parse_ok = 0,
     parse_need_more,
     parse_invalid_address,
     parse_invalid_version,
@@ -42,21 +43,6 @@ public:
         : type_(0)
         , port_(0)
     {
-    }
-    
-    size_t bytes() const
-    {
-        switch (type_)
-        {
-        case IPV4:
-            return 7;
-        case DOMAINNAME:
-            return 4 + std::get<std::string>(addr_).size();
-        case IPV6:
-            return 19;
-        default:
-            return 0;
-        }
     }
     
     uint8_t type() const
@@ -89,10 +75,16 @@ public:
         return port_;
     }
     
-    parse_result parse(const uint8_t *data, size_t size)
+    parse_result parse(asio::streambuf & buf)
     {
-        if(size < 4)
+        auto data = static_cast<const uint8_t *>(buf.data().data());
+        const size_t size = buf.size();
+        std::cout << __func__ << ", size: " << size << std::endl;
+
+        if(size < 4){
             return parse_need_more;
+        }
+
         type_ = data[0];
         switch (type_)
         {
@@ -106,6 +98,7 @@ public:
             std::memcpy(addr.data(), &data[1], 4);
             addr_ = asio::ip::address_v4{addr};
             port_ = (uint16_t{data[5]} << 8) | data[6];
+            buf.consume(7);
             return parse_ok;
         }
         case DOMAINNAME:
@@ -117,6 +110,7 @@ public:
             }
             addr_ = std::string {reinterpret_cast<const char *>(&data[2]), addrlen};
             port_ = (uint16_t{data[addrlen+2]} << 8) | data[addrlen+3];
+            buf.consume(addrlen+4);
             return parse_ok;
         }
         case IPV6:
@@ -129,6 +123,7 @@ public:
             std::memcpy(addr.data(), &data[1], 16);
             addr_ = asio::ip::address_v6{addr};
             port_ = (uint16_t{data[17]} << 8) | data[18];
+            buf.consume(19);
             return parse_ok;
         }
         default:

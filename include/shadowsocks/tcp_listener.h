@@ -1,65 +1,39 @@
 #pragma once
 
+#include "boost/asio/io_context.hpp"
+#include "boost/asio/spawn.hpp"
 #include <shadowsocks/asio.h>
 
 namespace shadowsocks
 {
 
-template <typename Handler>
 class tcp_listener : private noncopyable
 {
 public:
-    explicit tcp_listener(asio::io_context & io_context, Handler h)
+    tcp_listener(asio::io_context & io_context) 
         : io_context_(io_context)
-        , acceptor_(io_context)
-        , socket_(io_context)
-        , handler_(std::move(h))
     {
     }
 
-    void start(const tcp::endpoint & endpoint)
+    template<typename Handler>
+    void run(asio::yield_context yield, const tcp::endpoint & endpoint, Handler && handler)
     {
-        // Open the acceptor with the option to reuse the address (i.e. SO_REUSEADDR).
-        acceptor_.open(endpoint.protocol());
-        acceptor_.set_option(tcp::acceptor::reuse_address(true));
-        acceptor_.bind(endpoint);
-        acceptor_.listen();
-        do_accept();
-    }
-
-    void stop()
-    {
-        acceptor_.close();
-    }
-
-    asio::io_context & get_executor()
-    {
-        return io_context_;
+        tcp::acceptor acceptor{io_context_};
+        acceptor.open(endpoint.protocol());
+        acceptor.set_option(tcp::acceptor::reuse_address(true));
+        acceptor.bind(endpoint);
+        acceptor.listen();
+        for (;;) {
+            tcp::socket socket{io_context_};
+            acceptor.async_accept(socket, yield);
+            asio::spawn(io_context_, [&](asio::yield_context yield) {
+              handler(yield, std::move(socket));
+            });
+        }
     }
 
 private:
-    void do_accept()
-    {
-        acceptor_.async_accept(socket_, [this] (error_code ec)
-        {
-            if(!ec)
-            {
-                handler_(std::move(socket_));
-                do_accept();
-            }
-        });
-    }
-
     asio::io_context & io_context_;
-
-    tcp::endpoint endpoint_;
-
-    /// Acceptor used to listen for incoming connections.
-    tcp::acceptor acceptor_;
-
-    tcp::socket socket_;
-
-    Handler handler_;
 };
 
 }

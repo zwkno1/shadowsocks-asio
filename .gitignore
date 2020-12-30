@@ -258,6 +258,7 @@ linux/
 btest/
 
 build*
+.clangd
 .vscode
 .vscode/.cmaketools.json
 .vscode/launch.json

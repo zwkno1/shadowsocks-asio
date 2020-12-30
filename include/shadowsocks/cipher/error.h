@@ -14,7 +14,7 @@ enum cipher_errors
     cipher_need_more,
     cipher_aead_invalid_block_size,
     cipher_aead_decrypt_verify_failed,
-    cipher_buf_too_short,
+    cipher_buffer_too_short,
 };
 
 namespace detail
@@ -40,14 +40,14 @@ public:
           return "Cipher aread invalid block size";
       if(value == cipher_aead_decrypt_verify_failed)
           return "Cipher aead decrypt verify failed";
-      if(value == cipher_buf_too_short)
-          return "Cipher buf too short";
+      if(value == cipher_buffer_too_short)
+          return "Cipher buffer too short";
       
       return "shadowsocks.cipher error";
   }
 };
 
-}
+} // namespace detail
 
 const boost::system::error_category & get_cipher_category()
 {
@@ -60,8 +60,8 @@ inline boost::system::error_code make_error_code(cipher_errors e)
   return boost::system::error_code(static_cast<int>(e), get_cipher_category());
 }
 
-}
-}
+} // namespace error
+} // namespace shadowsocks
 
 namespace boost
 {
@@ -74,5 +74,5 @@ struct is_error_code_enum<shadowsocks::error::cipher_errors>
     static const bool value = true;
 };
 
-}
-}
+} // namespace system
+} // namespace boost

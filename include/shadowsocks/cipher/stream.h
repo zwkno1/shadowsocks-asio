@@ -1,8 +1,6 @@
 #pragma once
 
-#include <boost/asio.hpp>
-
-#include <shadowsocks/cipher/detail/cipher_context.h>
+#include <shadowsocks/cipher/cipher.h>
 #include <shadowsocks/cipher/detail/read_op.h>
 #include <shadowsocks/cipher/detail/write_op.h>
 
@@ -16,9 +14,9 @@ public:
 	typedef typename Stream::executor_type executor_type;
 
     template<typename Arg>
-    stream(Arg && arg, const cipher_info & info, const std::vector<uint8_t> & key)
+    stream(Arg && arg, const cipher_info & info, const cipher_key & key)
         : next_layer_(std::move(arg))
-        , context_(std::make_unique<detail::cipher_context>(info, key))
+        , context_(std::make_unique<cipher_context>(info, key))
     {
     }
     
@@ -53,7 +51,7 @@ public:
       boost::asio::async_completion<WriteHandler,
         void (boost::system::error_code, std::size_t)> init(handler);
 
-      detail::async_write(next_layer_, *context_, buffers, init.completion_handler);
+      detail::async_write(next_layer_, *context_, wbuf_, buffers, init.completion_handler);
 
       return init.result.get();
     }
@@ -71,7 +69,7 @@ public:
       boost::asio::async_completion<ReadHandler,
         void (boost::system::error_code, std::size_t)> init(handler);
 
-      detail::async_read(next_layer_, *context_, buffers, init.completion_handler);
+      detail::async_read(next_layer_, *context_, rbuf_, buffers, init.completion_handler);
 
       return init.result.get();
     }
@@ -79,7 +77,10 @@ public:
 private:
     Stream next_layer_;
 
-    std::unique_ptr<detail::cipher_context> context_;
+    std::unique_ptr<cipher_context> context_;
+
+    asio::streambuf rbuf_;
+    asio::streambuf wbuf_;
 };
 
-}
+} // namespace shadowsocks

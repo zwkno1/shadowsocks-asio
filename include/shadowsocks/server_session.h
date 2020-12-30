@@ -15,184 +15,111 @@ class server_session : public enable_shared_from_this<server_session>
 {
 public:
     server_session(tcp::socket && socket, const ss_config & config)
-        : local_(std::move(socket), *config.cipher, config.key)
-        , remote_(socket.get_executor())
-        , resolver_(socket.get_executor())
-        , rlen_(0)
-        , timer_(socket.get_executor())
-        , active_(chrono::steady_clock::now())
+        : io_context_(socket.get_io_context())
         , config_(config)
+        , local_(std::move(socket), *config.cipher, config.key)
+        , remote_(socket.get_io_context())
+        , active_(chrono::steady_clock::now())
     {
-        ++count();
     }
 
-    ~server_session()
+    void run(asio::yield_context yield)
     {
-        --count();
-    }
-
-    void start()
-    {
-        (*this)();
-        
-        if(config_.timeout != 0)
-        {
-            start_timer();
+        auto self = shared_from_this();
+        if (config_.timeout != 0) {
+            asio::spawn(io_context_, [self](asio::yield_context yield) {
+                try{
+                  self->start_timer(yield);
+                }catch(system_error &err){
+                }
+            });
         }
-    }
 
-    static size_t & count()
-    {
-        static size_t count_ = 0;
-        return count_;
-    }
-
-private:
-    void start_timer()
-    {
-        timer_.expires_from_now(chrono::seconds(config_.timeout));
-        timer_.async_wait([this, self = shared_from_this()](error_code ec)
-        {
-            if(chrono::duration_cast<chrono::seconds>(chrono::steady_clock::now() - active_).count() > config_.timeout)
-            {
-                error_code ec;
-                local_.next_layer().shutdown(asio::socket_base::shutdown_both, ec);
-                remote_.shutdown(asio::socket_base::shutdown_both, ec);
-            }
-            else
-            {
-                start_timer();
+        asio::spawn(io_context_, [self](asio::yield_context yield) {
+            try{
+                self->start_main(yield);
+            }catch(system_error &err){
             }
         });
     }
-    
-    void operator()(error_code ec = error_code{}, size_t bytes = 0, int start = 0)
+
+private:
+
+    void start_timer(asio::yield_context yield)
     {
-        if(ec)
-        {
-            return;
-        }
-        
-        spdlog::debug("start: {}", start);
-
-        start_ = start;
-        for(;;)
-        {
-            switch (start_)
-            {
-            case 0:
-                // read shadowsocks header
-                local_.next_layer().set_option(tcp::no_delay{true});
-                local_.next_layer().set_option(asio::socket_base::keep_alive{true});
-                local_.async_read_some(asio::buffer(rbuf_.data() + rlen_, rbuf_.size() - rlen_), [this, self = shared_from_this()](error_code ec, size_t bytes)
-                {
-                    (*this)(ec, bytes, ++start_);
-                });
-                return;
-            case 1:
-                // parse shadowsocks header
-                rlen_ += bytes;
-                switch(request_.parse(rbuf_.data(), rlen_))
-                {
-                case parse_ok:
-                {
-                    size_t request_len = request_.bytes();
-                    rlen_ -= request_len;
-                    if(rlen_ != 0)
-                    {
-                        std::memmove(rbuf_.data(), rbuf_.data()+request_len, rlen_);
-                    }
-
-                    switch (request_.type())
-                    {
-                    case DOMAINNAME:
-                    {
-                        //resolve
-                        resolver_.async_resolve(request_.domain(), std::to_string(request_.port()), [this, self = shared_from_this()](error_code ec, tcp::resolver::results_type result)
-                        {
-                            if(ec || result.empty())
-                            {
-                                return;
-                            }
-
-                            remote_.open(result.begin()->endpoint().protocol());
-                            remote_.async_connect(*result.begin(), [this, self = shared_from_this()](error_code ec)
-                            {
-                                (*this)(ec, 0, ++start_);
-                            });
-
-                        });
-                        return;
-                    }
-                    case IPV4:
-                    case IPV6:
-                    {
-                        tcp::endpoint ep{request_.address(), request_.port()};
-                        remote_.open(ep.protocol());
-                        remote_.async_connect(ep, [this, self = shared_from_this()](error_code ec)
-                        {
-                            (*this)(ec, 0, ++start_);
-                        });
-                        return;
-                    }
-                    default:
-                        return;
-                    }
-                }
-                case parse_need_more:
-                    start_ = 0;
-                    continue;
-                default:
-                    spdlog::error("bad proto");
-                    return;
-                }
-            case 2:
-            {
-                if(config_.no_delay.value_or(false))
-                {
-                    remote_.set_option(tcp::no_delay{true});
-                }
-                else
-                {
-                    local_.next_layer().set_option(tcp::no_delay{false});
-                }
-                
-                remote_.set_option(asio::socket_base::keep_alive{true});
-                
-                (tunnel_ = make_shared<tunnel_type>(local_, remote_, rbuf_, wbuf_, [this, self = shared_from_this()](){ active_ = chrono::steady_clock::now(); })).lock()->start(rlen_);
-            }
-                return;
-            default:
-                spdlog::error("bug");
-            }
+        asio::steady_timer timer{io_context_};
+        for (;;) {
+          timer.expires_from_now(chrono::seconds(config_.timeout));
+          timer.async_wait(yield);
+          if (chrono::duration_cast<chrono::seconds>(chrono::steady_clock::now() - active_).count() > config_.timeout) {
+            local_.next_layer().shutdown(asio::socket_base::shutdown_both);
+            remote_.shutdown(asio::socket_base::shutdown_both);
+          }
         }
     }
     
-    typedef std::array<uint8_t, shadowsocks::max_cipher_block_size + 1024> buffer_type;
-    typedef tunnel<stream<tcp::socket>, tcp::socket, buffer_type, std::function<void()> > tunnel_type;
+    void start_main(asio::yield_context yield)
+    {
+        local_.next_layer().set_option(tcp::no_delay{true});
+        local_.next_layer().set_option(asio::socket_base::keep_alive{true});
+        shadowsocks::request request;
+        error_code ec;
+        for(;;) {
+            size_t nbytes = local_.async_read_some(local_buf_.prepare(32768 - local_buf_.size()) , yield);
+            local_buf_.commit(nbytes);
+            if(ec){
+              return;
+            }
+            auto result = request.parse(local_buf_);
+            if(result == parse_ok) {
+              break;
+            }
+            if(result != parse_need_more){
+              local_.next_layer().shutdown(asio::socket_base::shutdown_both);
+                return;
+            }
+        }
+
+        tcp::endpoint endpoint;
+        if(request.type() == DOMAINNAME) {
+          tcp::resolver resolver{io_context_};
+          auto result = resolver.async_resolve(request.domain(), std::to_string(request.port()), yield);
+          endpoint = *result.begin();
+        }else{
+          endpoint = tcp::endpoint{request.address(), request.port()};
+        }
+        remote_.async_connect(endpoint, yield);
+
+        if (config_.no_delay.value_or(false)) {
+          remote_.set_option(tcp::no_delay{true});
+        } else {
+          local_.next_layer().set_option(tcp::no_delay{false});
+        }
+        remote_.set_option(asio::socket_base::keep_alive{true});
+
+        tunnel(yield);
+    }
+
+    void tunnel(asio::yield_context yield) {
+        auto self = shared_from_this();
+        tunnel::run(io_context_, self, local_, remote_, local_buf_, 32768);
+        tunnel::run(io_context_, self, remote_, local_, remote_buf_, 32768);
+    }
+
+    
+    asio::io_context & io_context_;
+
+    const ss_config & config_;
 
     stream<tcp::socket> local_;
 
     tcp::socket remote_;
 
-    tcp::resolver resolver_;
+    asio::streambuf local_buf_;
 
-    weak_ptr<tunnel_type> tunnel_;
+    asio::streambuf remote_buf_;
 
-    request request_;
-
-    size_t rlen_;
-
-    buffer_type rbuf_;
-    buffer_type wbuf_;
-    
-    asio::steady_timer timer_;
-    
     chrono::steady_clock::time_point active_;
-    
-    const ss_config & config_;
-    
-    int start_;
 };
 
 }

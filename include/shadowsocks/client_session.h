@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include "boost/asio/spawn.hpp"
 #include <vector>
 
 #include <spdlog/spdlog.h>
@@ -14,14 +15,15 @@
 namespace shadowsocks
 {
 
-class client_session : public enable_shared_from_this<client_session>
+#if 0
+class client_session : private enable_shared_from_this<client_session>
 {
 public:
     client_session(tcp::socket && socket, const ss_config & config)
         : local_(std::move(socket))
-        , remote_(tcp::socket{socket.get_executor()}, *config.cipher, config.key)
+        , remote_(tcp::socket{socket.get_io_context()}, *config.cipher, config.key)
         , rlen_(0)
-        , timer_(socket.get_executor())
+        , timer_(socket.get_io_context())
         , active_(chrono::steady_clock::now())
         , config_(config)
     {
@@ -33,7 +35,7 @@ public:
         --count();
     }
 
-    void start()
+    void start(asio::yield_context yield)
     {
         (*this)();
         
@@ -291,5 +293,7 @@ private:
     
     int start_;
 };
+
+#endif
 
 }

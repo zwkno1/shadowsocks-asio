@@ -23,7 +23,7 @@ struct ss_config
     std::optional<uint32_t> workers;
     
     const cipher_info * cipher = nullptr;
-    std::vector<uint8_t> key;
+    cipher_key key;
     
     SERIALIZATION_DEFINE(log_level, server_address, server_port, local_address, local_port, method, password, timeout, no_delay, workers)
 };

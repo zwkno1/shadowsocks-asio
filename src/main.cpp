@@ -16,7 +16,7 @@ bool parse_command_line(int argc, char * argv[], std::string & configFile)
         bp::options_description desc("allowed options");
         desc.add_options()
         ("help,h", "Print help message.")
-        ("config,c", bp::value<std::string>()->value_name("<config_file>"), "The path to config file.");
+        ("config,c", bp::value<std::string>(), "The path to config file.");
         
         bp::variables_map vm;
         bp::store(bp::parse_command_line(argc, argv, desc), vm);
@@ -24,20 +24,38 @@ bool parse_command_line(int argc, char * argv[], std::string & configFile)
         
         if(vm.count("help") || (!vm.count("config")))
         {
-            std::cerr << "usage:\n    " << argv[0] << " \n\n" << desc << std::endl;
+            std::cerr << "usage:\n    " << argv[0] << " -c <config_file> \n\n" << desc << std::endl;
             return false;
         }
         
         configFile = vm["config"].as<std::string>();
-        
+        std::cout << configFile << std::endl;
         return true;
     }
-    catch(std::exception & e)
+    catch(const boost::program_options::error & e)
     {
         std::cerr << e.what() << std::endl;
         return false;
     }
 }
+
+#ifdef BUILD_SHADOWSOCKS_SERVER
+using session_type = shadowsocks::server_session;
+std::optional<tcp::endpoint> get_endpoint(const shadowsocks::ss_config & config) {
+    std::optional<tcp::endpoint> result;
+    result.emplace(asio::ip::make_address(config.server_address), config.server_port);
+    return result;
+}
+#else
+using session_type = shadowsocks::client_session;
+std::optional<tcp::endpoint> get_endpoint(const shadowsocks::ss_config & config) {
+  std::optional<tcp::endpoint> result;
+  if (config.local_address.has_value() && config.local_port.has_value()) {
+    result.emplace(asio::ip::make_address(*config.local_address), *config.local_port);
+  }
+  return result;
+}
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -54,6 +72,7 @@ int main(int argc, char *argv[])
         serialization::json_iarchive ia;
         std::fstream f(configFile, f.in|f.binary);
         std::string content{std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>()};
+        std::cout << content << std::endl;
         ia.load_data(content.data());
         serialization::unserialize(ia, config);
     }
@@ -65,55 +84,42 @@ int main(int argc, char *argv[])
     
     spdlog::set_level(spdlog::level::from_str(config.log_level.value_or("info")));
     
-    config.cipher = shadowsocks::get_cipher_info(config.method);
+    config.cipher = shadowsocks::make_cipher_info(config.method);
     if(!config.cipher)
     {
         std::cout << "cipher method not found: [" << config.method << "]." << std::endl;
         return -1;
     }
-    config.key = shadowsocks::build_cipher_key(*config.cipher, config.password);
+    config.key = shadowsocks::make_cipher_key(*config.cipher, config.password);
     spdlog::info("cipher method: {}", config.method);
     
-    boost::asio::io_context context{1};
-    
-    // start timer to print session num
-    boost::asio::steady_timer timer{context};
-    std::function<void()> start_timer;
-    start_timer = [&timer, &start_timer]()
-    {
-        timer.expires_from_now(std::chrono::seconds(15));
-        timer.async_wait([&start_timer](boost::system::error_code ec)
-        {
-            spdlog::debug("session count: {}", shadowsocks::server_session::count());
-            if(!ec)
-            {
-                start_timer();
-            }
-        });
-    };
-    start_timer();
-    
-    shadowsocks::tcp_listener<std::function<void(boost::asio::ip::tcp::socket &&)>> listener(context, [&config](boost::asio::ip::tcp::socket && s)
-    {
-#ifdef BUILD_SHADOWSOCKS_SERVER
-        make_shared<shadowsocks::server_session>(std::move(s), config)->start();
-#else
-        make_shared<shadowsocks::client_session>(std::move(s), config)->start();
-#endif
-    });
-
     try 
     {
-#ifdef BUILD_SHADOWSOCKS_SERVER
-        listener.start(boost::asio::ip::tcp::endpoint{boost::asio::ip::make_address(config.server_address), config.server_port});
-#else
-        if((!config.local_address) || (!config.local_port))
-        {
-            std::cout << "ss-local should configure local_address and local_port" << std::endl;
+        asio::io_context context{1};
+    
+        // start timer to print session num
+        //asio::spawn(context, [&](asio::yield_context yield) {
+        //  asio::steady_timer timer{context};
+        //  for (error_code ec; !ec;) {
+        //    spdlog::debug("session count: {}", shadowsocks::server_session::count());
+        //    timer.expires_from_now(std::chrono::seconds(15));
+        //    timer.async_wait(yield[ec]);
+        //  }
+        //});
+
+        auto endpoint = get_endpoint(config);
+        if(!endpoint.has_value()) {
+            spdlog::error("invalid ip or port");
             return -1;
         }
-        listener.start(boost::asio::ip::tcp::endpoint{boost::asio::ip::make_address(*config.local_address), *config.local_port});
-#endif
+
+        asio::spawn(context, [&](asio::yield_context yield) {
+          shadowsocks::tcp_listener listener{context};
+          listener.run(yield, *endpoint, [&](asio::yield_context yield, tcp::socket && socket) {
+              auto session = make_shared<session_type>(std::move(socket), config);
+              session->run(yield);
+           });
+        });
         context.run();
     }
     catch(const CryptoPP::Exception & e)
