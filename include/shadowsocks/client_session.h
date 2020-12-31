@@ -1,14 +1,11 @@
 
 #pragma once
 
-#include "boost/asio/spawn.hpp"
 #include <vector>
-
-#include <spdlog/spdlog.h>
 
 #include <shadowsocks/asio.h>
 #include <shadowsocks/cipher/stream.h>
-#include <shadowsocks/ss_config.h>
+#include <shadowsocks/config.h>
 #include <shadowsocks/proto.h>
 #include <shadowsocks/tunnel.h>
 

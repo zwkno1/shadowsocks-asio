@@ -1,8 +1,8 @@
 #pragma once
 
 #include <shadowsocks/cipher/cipher.h>
-#include <shadowsocks/cipher/detail/read_op.h>
-#include <shadowsocks/cipher/detail/write_op.h>
+#include <shadowsocks/detail/cipher/read_op.h>
+#include <shadowsocks/detail/cipher/write_op.h>
 
 namespace shadowsocks
 {

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "boost/asio/streambuf.hpp"
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -12,6 +11,8 @@
 #include <boost/asio/streambuf.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/system/system_error.hpp>
+
+#include <spdlog/spdlog.h>
 
 namespace chrono = std::chrono;
 

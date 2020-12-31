@@ -1,10 +1,4 @@
-
 #pragma once
-
-#include "boost/asio/buffer.hpp"
-#ifndef CRYPTOPP_ENABLE_NAMESPACE_WEAK 
-#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
-#endif
 
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/secblock.h>
@@ -18,7 +12,6 @@
 #include <cryptopp/des.h>
 #include <cryptopp/idea.h>
 #include <cryptopp/rc2.h>
-#include <cryptopp/arc4.h>
 #include <cryptopp/salsa.h>
 #include <cryptopp/seed.h>
 #include <cryptopp/serpent.h>
@@ -27,12 +20,20 @@
 #include <cryptopp/modes.h>
 #include <cryptopp/gcm.h>
 #include <cryptopp/chachapoly.h>
+#ifndef CRYPTOPP_ENABLE_NAMESPACE_WEAK 
+#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
+#include <cryptopp/arc4.h>
+#include <cryptopp/md5.h>
+#endif
 
 #include <shadowsocks/cipher/error.h>
 #include <shadowsocks/asio.h>
 
 namespace shadowsocks
 {
+
+constexpr size_t MAX_AEAD_BLOCK_SIZE = 0x3fff;
+
 namespace detail
 {
         
@@ -133,8 +134,6 @@ class aead_cipher
     using decryption_type = typename T::Decryption;
     
     static constexpr size_t TAG_LENGTH = 16; 
-    
-    static constexpr size_t MAX_BLOCK_SIZE = 0x3fff;
 
 public:
     aead_cipher(const CryptoPP::SecByteBlock & key, size_t salt_length, size_t iv_length) 
@@ -151,7 +150,7 @@ public:
     void encrypt(asio::const_buffer input, asio::streambuf & output)
     {
         const size_t encryption_size = [&]() {
-            size_t nblocks = (input.size() + MAX_BLOCK_SIZE - 1) / MAX_BLOCK_SIZE;
+            size_t nblocks = (input.size() + MAX_AEAD_BLOCK_SIZE - 1) / MAX_AEAD_BLOCK_SIZE;
             size_t init_size = (encryption_init_ ? 0 : salt_length_);
             return init_size + nblocks * (2 + TAG_LENGTH + TAG_LENGTH) + input.size();
         }();
@@ -169,7 +168,7 @@ public:
 
         while(input.size() != 0)
         {
-            const size_t block_size = std::min(MAX_BLOCK_SIZE, input.size());
+            const size_t block_size = std::min(MAX_AEAD_BLOCK_SIZE, input.size());
             CryptoPP::byte length_buffer[2] = { 
                 static_cast<CryptoPP::byte>((block_size >> 8) & 0xff),
                 static_cast<CryptoPP::byte>(block_size & 0xff)
@@ -213,7 +212,7 @@ public:
                     break;
                 }
                 block_size_ = length_buffer[0] << 8 | length_buffer[1];
-                if ((block_size_ == 0) || (block_size_ > MAX_BLOCK_SIZE)) {
+                if ((block_size_ == 0) || (block_size_ > MAX_AEAD_BLOCK_SIZE)) {
                     ec = make_error_code(error::cipher_aead_invalid_block_size);
                     break;
                 }
@@ -281,3 +280,4 @@ private:
 
 } // namespace detail
 } // namespace shadowsocks
+

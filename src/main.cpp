@@ -41,14 +41,14 @@ bool parse_command_line(int argc, char * argv[], std::string & configFile)
 
 #ifdef BUILD_SHADOWSOCKS_SERVER
 using session_type = shadowsocks::server_session;
-std::optional<tcp::endpoint> get_endpoint(const shadowsocks::ss_config & config) {
+std::optional<tcp::endpoint> get_endpoint(const shadowsocks::config & config) {
     std::optional<tcp::endpoint> result;
     result.emplace(asio::ip::make_address(config.server_address), config.server_port);
     return result;
 }
 #else
 using session_type = shadowsocks::client_session;
-std::optional<tcp::endpoint> get_endpoint(const shadowsocks::ss_config & config) {
+std::optional<tcp::endpoint> get_endpoint(const shadowsocks::config & config) {
   std::optional<tcp::endpoint> result;
   if (config.local_address.has_value() && config.local_port.has_value()) {
     result.emplace(asio::ip::make_address(*config.local_address), *config.local_port);
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
     }
     
     // locad config
-    shadowsocks::ss_config config;
+    shadowsocks::config config;
     try
     {
         serialization::json_iarchive ia;
@@ -98,14 +98,14 @@ int main(int argc, char *argv[])
         asio::io_context context{1};
     
         // start timer to print session num
-        //asio::spawn(context, [&](asio::yield_context yield) {
-        //  asio::steady_timer timer{context};
-        //  for (error_code ec; !ec;) {
-        //    spdlog::debug("session count: {}", shadowsocks::server_session::count());
-        //    timer.expires_from_now(std::chrono::seconds(15));
-        //    timer.async_wait(yield[ec]);
-        //  }
-        //});
+        asio::spawn(context, [&](asio::yield_context yield) {
+          asio::steady_timer timer{context};
+          for (error_code ec; !ec;) {
+            //spdlog::info("session count: {}", shadowsocks::server_session::get_counter());
+            timer.expires_from_now(std::chrono::seconds(10));
+            timer.async_wait(yield[ec]);
+          }
+        });
 
         auto endpoint = get_endpoint(config);
         if(!endpoint.has_value()) {

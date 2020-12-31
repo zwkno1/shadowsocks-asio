@@ -9,7 +9,7 @@
 namespace shadowsocks
 {
 
-struct ss_config
+struct config
 {
     std::optional<std::string> log_level;
     std::string server_address;

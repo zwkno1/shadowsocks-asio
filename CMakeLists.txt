@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.2)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(shadowsocks-asio)
@@ -12,10 +12,10 @@ include(${PROJECT_SOURCE_DIR}/cmake/external/spdlog.cmake)
 
 find_package(Threads)
 
-set(Boost_INCLUDE_DIR /usr/include/boost169)
-set(BOOST_LIBRARYDIR /usr/lib64/boost169)
-#option(Boost_USE_STATIC_LIBS "use boost static libs" ON)
-find_package(Boost 1.69 COMPONENTS system program_options coroutine thread REQUIRED)
+#set(Boost_INCLUDE_DIR /usr/include/boost169)
+#set(BOOST_LIBRARYDIR /usr/lib64/boost169)
+option(Boost_USE_STATIC_LIBS "use boost static libs" ON)
+find_package(Boost 1.66 COMPONENTS system program_options coroutine thread REQUIRED)
 #message("-------${Boost_INCLUDE_DIR}-----")
 #message("-------${Boost_LIBRARIES}-------")
 

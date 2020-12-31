@@ -1,22 +1,12 @@
 #pragma once
 
-#include "boost/asio/buffer.hpp"
-#include "cryptopp/chacha.h"
-#include "cryptopp/secblock.h"
 #include <cstdint>
 #include <memory>
 #include <variant>
+#include <unordered_map>
 #include <type_traits>
 
-#include <shadowsocks/cipher/detail/cipher.h>
-
-#ifndef CRYPTOPP_ENABLE_NAMESPACE_WEAK 
-#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
-#include <cryptopp/md5.h>
-#undef CRYPTOPP_ENABLE_NAMESPACE_WEAK
-#else
-#include <cryptopp/md5.h>
-#endif
+#include <shadowsocks/detail/cipher/cipher.h>
 
 namespace shadowsocks
 {

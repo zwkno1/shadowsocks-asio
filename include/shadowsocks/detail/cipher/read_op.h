@@ -39,7 +39,7 @@ public:
             {
                 context_.decrypt(rbuf_, *asio::buffer_sequence_begin(buffers_), ec_, nbytes_);
                 if(!ec_ && nbytes_ == 0) {
-                    next_layer_.async_read_some(rbuf_.prepare(32768-rbuf_.size()), std::move(*this));
+                    next_layer_.async_read_some(rbuf_.prepare((MAX_AEAD_BLOCK_SIZE+1)*2), std::move(*this));
                     return;
                 }
 
