@@ -1,7 +1,6 @@
 #pragma once
 
-#include <boost/system/error_code.hpp>
-#include <boost/system/system_error.hpp>
+#include <shadowsocks/asio.h>
 
 namespace shadowsocks
 {
@@ -20,7 +19,7 @@ enum cipher_errors
 namespace detail
 {
     
-class cipher_category : public boost::system::error_category
+class cipher_category : public error_category
 {
 public: 
   const char* name() const noexcept
@@ -33,31 +32,31 @@ public:
       if(value == 0)
           return "success";
       if (value == cipher_algo_not_found)
-          return "Cipher algo not found";
+          return "cipher algo not found";
       if(value == cipher_need_more)
-          return "Cipher need more";
+          return "cipher need more";
       if(value == cipher_aead_invalid_block_size)
-          return "Cipher aread invalid block size";
+          return "cipher aread invalid block size";
       if(value == cipher_aead_decrypt_verify_failed)
-          return "Cipher aead decrypt verify failed";
+          return "cipher aead decrypt verify failed";
       if(value == cipher_buffer_too_short)
-          return "Cipher buffer too short";
+          return "cipher buffer too short";
       
-      return "shadowsocks.cipher error";
+      return "cipher unknown error";
   }
 };
 
 } // namespace detail
 
-const boost::system::error_category & get_cipher_category()
+const error_category & get_cipher_category()
 {
     static detail::cipher_category instance;
     return instance;
 }
 
-inline boost::system::error_code make_error_code(cipher_errors e)
+inline error_code make_error_code(cipher_errors e)
 {
-  return boost::system::error_code(static_cast<int>(e), get_cipher_category());
+  return error_code(static_cast<int>(e), get_cipher_category());
 }
 
 } // namespace error

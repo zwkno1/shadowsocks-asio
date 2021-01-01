@@ -1,8 +1,6 @@
 #pragma once
 
-#include "boost/asio/streambuf.hpp"
-#include <boost/asio.hpp>
-
+#include <shadowsocks/asio.h>
 #include <shadowsocks/cipher/cipher.h>
 
 namespace shadowsocks
@@ -24,7 +22,7 @@ public:
     {
     }
 
-    void operator()(boost::system::error_code ec, std::size_t nbytes, int start = 0)
+    void operator()(error_code ec, std::size_t nbytes, int start = 0)
     {
         for(;;)
         {
@@ -35,7 +33,7 @@ public:
                 handler_(ec, nbytes_);
                 return;
             default:
-                boost::asio::const_buffer buffer(*boost::asio::buffer_sequence_begin(buffers_));
+                asio::const_buffer buffer(*asio::buffer_sequence_begin(buffers_));
                 nbytes_ = buffer.size();
                 context_.encrypt(buffer, wbuf_);
                 asio::async_write(next_layer_, wbuf_.data(), std::move(*this));
@@ -61,8 +59,8 @@ private:
 template <typename Stream, typename ConstBufferSequence, typename Handler>
 inline void async_write(Stream& next_layer, cipher_context & ctx, asio::streambuf & wbuf, const ConstBufferSequence & buffers, Handler& handler)
 {
-    write_op<Stream, ConstBufferSequence, Handler>{next_layer, ctx, wbuf, buffers, handler}(boost::system::error_code{}, 0, 1);
+    write_op<Stream, ConstBufferSequence, Handler>{next_layer, ctx, wbuf, buffers, handler}(error_code{}, 0, 1);
 }
 
-}
-}
+} // namespace detail
+} // namespace shadowsocks

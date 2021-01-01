@@ -12,76 +12,64 @@ include(${PROJECT_SOURCE_DIR}/cmake/external/spdlog.cmake)
 
 find_package(Threads)
 
-#set(Boost_INCLUDE_DIR /usr/include/boost169)
-#set(BOOST_LIBRARYDIR /usr/lib64/boost169)
+add_definitions(
+	-DBOOST_COROUTINES_NO_DEPRECATION_WARNING=1
+)
 option(Boost_USE_STATIC_LIBS "use boost static libs" ON)
-find_package(Boost 1.66 COMPONENTS system program_options coroutine thread REQUIRED)
-#message("-------${Boost_INCLUDE_DIR}-----")
-#message("-------${Boost_LIBRARIES}-------")
+find_package(Boost 1.70 COMPONENTS system program_options coroutine thread unit_test_framework REQUIRED)
 
-set(GPERFTOOLS_USE_STATIC_LIBS TRUE)
-find_package(gperftools REQUIRED)
 
 include_directories(${Boost_INCLUDE_DIR} 
 	${CRYPTOPP_INCLUDE_DIRS} 
-	${GPERFTOOLS_INCLUDE_DIR}
 	${SPDLOG_INCLUDE_DIRS}
 	./third_party/serialization2/include
 	./include 
-	)
-
-file(GLOB_RECURSE HEADER_FILES "./include/*.h ./include/detail/*.h")
-add_custom_target(headers SOURCES ${HEADER_FILES})
+)
 
 # ss-local
-#add_executable(ss-local
-#	${HEADER_FILES}
-#	src/main.cpp
-#	)
-#add_dependencies(ss-local CRYPTOPP SPDLOG)
-#
-#target_link_libraries(ss-local
-#	${Boost_LIBRARIES}
-#	${CRYPTOPP_LIBRARIES}
-#	${CMAKE_THREAD_LIBS_INIT}
-#	${GPERFTOOLS_TCMALLOC_LIBRARY}
-#	)
-
-#ss-server
-add_executable(ss-server 
-	${HEADER_FILES}
+add_executable(ss-local
 	src/main.cpp
-	)
+)
+add_dependencies(ss-local CRYPTOPP SPDLOG)
+
+target_link_libraries(ss-local
+	${Boost_LIBRARIES}
+	${CRYPTOPP_LIBRARIES}
+	${CMAKE_THREAD_LIBS_INIT}
+)
+
+# ss-server
+add_executable(ss-server 
+	src/main.cpp
+)
 add_dependencies(ss-server CRYPTOPP SPDLOG)
 
 set_target_properties(
     ss-server
     PROPERTIES
     COMPILE_DEFINITIONS BUILD_SHADOWSOCKS_SERVER=1
-    )
+)
 
 target_link_libraries(ss-server
 	${Boost_LIBRARIES}
 	${CRYPTOPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
-	${GPERFTOOLS_TCMALLOC_LIBRARY}
-	)
+)
 
-
-add_definitions(
-	-DBOOST_COROUTINES_NO_DEPRECATION_WARNING=1
+option(ENABLE_TEST "build test" OFF)
+if(ENABLE_TEST STREQUAL "ON")
+    include(CTest)
+    enable_testing()
+    
+    add_executable(cipher_test test/cipher_test.cpp)
+    add_dependencies(cipher_test CRYPTOPP SPDLOG)
+    target_link_libraries(cipher_test
+    	${CRYPTOPP_LIBRARIES}
+    	${Boost_LIBRARIES}
+    	${CMAKE_THREAD_LIBS_INIT}
 	)
-option(SHADOWSOCKS_ENABLE_TEST "build test" OFF)
-if(SHADOWSOCKS_ENABLE_TEST STREQUAL "ON")
-add_executable(cipher_test
-	${HEADER_FILES}
-	test/cipher_test.cpp
-	)
-add_dependencies(cipher_test CRYPTOPP)
-target_link_libraries(cipher_test
-	${CRYPTOPP_LIBRARIES}
-	${CMAKE_THREAD_LIBS_INIT}
-	)
+		
+    add_test(NAME cipher_test COMMAND cipher_test)
 endif()
 
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/config/client.json DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

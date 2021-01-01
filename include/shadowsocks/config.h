@@ -28,4 +28,4 @@ struct config
     SERIALIZATION_DEFINE(log_level, server_address, server_port, local_address, local_port, method, password, timeout, no_delay, workers)
 };
 
-}
+} // namespace shadowsocks

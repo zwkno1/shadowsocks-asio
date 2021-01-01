@@ -1,5 +1,6 @@
 #pragma once
 
+#include <shadowsocks/asio.h>
 #include <shadowsocks/cipher/cipher.h>
 #include <shadowsocks/detail/cipher/read_op.h>
 #include <shadowsocks/detail/cipher/write_op.h>
@@ -40,7 +41,7 @@ public:
 
     template <typename ConstBufferSequence, typename WriteHandler>
     BOOST_ASIO_INITFN_RESULT_TYPE(WriteHandler,
-        void (boost::system::error_code, std::size_t))
+        void (error_code, std::size_t))
     async_write_some(const ConstBufferSequence& buffers,
         BOOST_ASIO_MOVE_ARG(WriteHandler) handler)
     {
@@ -48,8 +49,8 @@ public:
       // not meet the documented type requirements for a WriteHandler.
       BOOST_ASIO_WRITE_HANDLER_CHECK(WriteHandler, handler) type_check;
 
-      boost::asio::async_completion<WriteHandler,
-        void (boost::system::error_code, std::size_t)> init(handler);
+      asio::async_completion<WriteHandler,
+        void (error_code, std::size_t)> init(handler);
 
       detail::async_write(next_layer_, *context_, wbuf_, buffers, init.completion_handler);
 
@@ -58,7 +59,7 @@ public:
 
     template <typename MutableBufferSequence, typename ReadHandler>
     BOOST_ASIO_INITFN_RESULT_TYPE(ReadHandler,
-        void (boost::system::error_code, std::size_t))
+        void (error_code, std::size_t))
     async_read_some(const MutableBufferSequence& buffers,
         BOOST_ASIO_MOVE_ARG(ReadHandler) handler)
     {
@@ -66,8 +67,8 @@ public:
       // not meet the documented type requirements for a ReadHandler.
       BOOST_ASIO_READ_HANDLER_CHECK(ReadHandler, handler) type_check;
 
-      boost::asio::async_completion<ReadHandler,
-        void (boost::system::error_code, std::size_t)> init(handler);
+      asio::async_completion<ReadHandler,
+        void (error_code, std::size_t)> init(handler);
 
       detail::async_read(next_layer_, *context_, rbuf_, buffers, init.completion_handler);
 
@@ -80,6 +81,7 @@ private:
     std::unique_ptr<cipher_context> context_;
 
     asio::streambuf rbuf_;
+    
     asio::streambuf wbuf_;
 };
 

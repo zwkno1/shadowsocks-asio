@@ -4,7 +4,6 @@
 #include <memory>
 #include <variant>
 #include <unordered_map>
-#include <type_traits>
 
 #include <shadowsocks/detail/cipher/cipher.h>
 
@@ -19,7 +18,7 @@ enum cipher_type : uint8_t
 
 enum cipher_metod
 {
-    AES_CFB,
+    AES_CFB = 0,
     AES_CTR,
     BLOWFISH_CFB,
     CAMELLIA_CFB,
@@ -54,9 +53,9 @@ struct cipher_info
 
 using cipher_key = CryptoPP::SecByteBlock;
 
-inline const cipher_info * make_cipher_info(const std::string & name)
+inline const std::vector<std::pair<std::string, cipher_info>> & get_cipher_infos()
 {
-    static const std::unordered_map<std::string, cipher_info> cipher_infos = 
+    static const std::vector<std::pair<std::string, cipher_info>> cipher_infos = 
     {
         {"aes-128-cfb", {AES_CFB, 16, 16, STREAM}},
         {"aes-192-cfb", {AES_CFB, 24, 16, STREAM}},
@@ -84,14 +83,17 @@ inline const cipher_info * make_cipher_info(const std::string & name)
         {"aes-192-gcm", {AES_GCM, 24, 12, AEAD/*, 24, 16*/}},
         {"aes-256-gcm", {AES_GCM, 32, 12, AEAD/*, 32, 16*/}}
     };
+    return cipher_infos;
+}
     
-    auto iter = cipher_infos.find(name);
-    if(iter == cipher_infos.end())
-    {
-        return nullptr;
+inline const cipher_info * make_cipher_info(const std::string & name)
+{
+    for(auto & i : get_cipher_infos()) {
+        if(name == i.first){
+            return &i.second;
+        }
     }
-    
-    return &iter->second;
+    return nullptr;
 }
 
 inline cipher_key make_cipher_key(const shadowsocks::cipher_info & info, const std::string & password)

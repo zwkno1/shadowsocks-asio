@@ -25,4 +25,4 @@ public:
 	}
 };
 
-}
+} // namespace shadowsocks

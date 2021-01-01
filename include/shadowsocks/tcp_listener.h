@@ -1,7 +1,5 @@
 #pragma once
 
-#include "boost/asio/io_context.hpp"
-#include "boost/asio/spawn.hpp"
 #include <shadowsocks/asio.h>
 
 namespace shadowsocks
@@ -36,4 +34,4 @@ private:
     asio::io_context & io_context_;
 };
 
-}
+} // namespace shadowsocks

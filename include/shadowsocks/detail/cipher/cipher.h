@@ -218,7 +218,9 @@ public:
                 }
             } else {
                 if(output.size() < block_size_) {
-                    ec = error::make_error_code(error::cipher_buffer_too_short);
+                    if(nbytes == 0) {
+                        ec = error::make_error_code(error::cipher_buffer_too_short);
+                    }
                     break;
                 }
                 if(!decrypt_block(to_byte(output.data()), to_byte(rbuf.data()), decryption_size)) {
@@ -280,4 +282,3 @@ private:
 
 } // namespace detail
 } // namespace shadowsocks
-

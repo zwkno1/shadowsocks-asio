@@ -4,28 +4,9 @@
 #include <functional>
 #include <memory>
 
-#include <boost/asio.hpp>
-#include <boost/asio/coroutine.hpp>
-#include <boost/asio/spawn.hpp>
-#include <boost/asio/strand.hpp>
-#include <boost/asio/streambuf.hpp>
-#include <boost/noncopyable.hpp>
-#include <boost/system/system_error.hpp>
-
-#include <spdlog/spdlog.h>
-
-namespace chrono = std::chrono;
-
-using noncopyable = boost::noncopyable;
-using error_code = boost::system::error_code;
-using system_error = boost::system::system_error;
-
-namespace asio = boost::asio;
-using tcp = boost::asio::ip::tcp;
-using udp = boost::asio::ip::udp;
-using streambuf = boost::asio::streambuf;
-
 #ifdef SHADOWSOCKS_DISABLE_THREADS
+
+#define BOOST_ASIO_DISABLE_THREADS 1
 
 template <typename _Tp>
 using shared_ptr = std::__shared_ptr<_Tp, std::_Lock_policy::_S_single>;
@@ -51,6 +32,28 @@ using std::shared_ptr;
 using std::weak_ptr;
 
 #endif
+
+#include <boost/asio.hpp>
+#include <boost/asio/coroutine.hpp>
+#include <boost/asio/spawn.hpp>
+#include <boost/asio/strand.hpp>
+#include <boost/asio/streambuf.hpp>
+#include <boost/noncopyable.hpp>
+#include <boost/system/system_error.hpp>
+
+#include <spdlog/spdlog.h>
+
+namespace chrono = std::chrono;
+
+using noncopyable = boost::noncopyable;
+using error_code = boost::system::error_code;
+using system_error = boost::system::system_error;
+using error_category = boost::system::error_category;
+
+namespace asio = boost::asio;
+using tcp = boost::asio::ip::tcp;
+using udp = boost::asio::ip::udp;
+using streambuf = boost::asio::streambuf;
 
 namespace boost {
 namespace asio {

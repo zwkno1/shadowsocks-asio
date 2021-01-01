@@ -1,12 +1,9 @@
 #include <fstream>
 
 #include <boost/program_options.hpp>
-
 #include <shadowsocks/tcp_listener.h>
 #include <shadowsocks/server_session.h>
 #include <shadowsocks/client_session.h>
-#include <spdlog/spdlog.h>
-#include <shadowsocks/udp_server.h>
 
 bool parse_command_line(int argc, char * argv[], std::string & configFile)
 {
@@ -72,7 +69,6 @@ int main(int argc, char *argv[])
         serialization::json_iarchive ia;
         std::fstream f(configFile, f.in|f.binary);
         std::string content{std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>()};
-        std::cout << content << std::endl;
         ia.load_data(content.data());
         serialization::unserialize(ia, config);
     }
@@ -101,8 +97,8 @@ int main(int argc, char *argv[])
         asio::spawn(context, [&](asio::yield_context yield) {
           asio::steady_timer timer{context};
           for (error_code ec; !ec;) {
-            //spdlog::info("session count: {}", shadowsocks::server_session::get_counter());
-            timer.expires_from_now(std::chrono::seconds(10));
+            spdlog::info("session count: {}", session_type::get_counter());
+            timer.expires_from_now(std::chrono::seconds(4));
             timer.async_wait(yield[ec]);
           }
         });
@@ -116,7 +112,7 @@ int main(int argc, char *argv[])
         asio::spawn(context, [&](asio::yield_context yield) {
           shadowsocks::tcp_listener listener{context};
           listener.run(yield, *endpoint, [&](asio::yield_context yield, tcp::socket && socket) {
-              auto session = make_shared<session_type>(std::move(socket), config);
+              auto session = make_shared<session_type>(config, context, std::move(socket));
               session->run(yield);
            });
         });

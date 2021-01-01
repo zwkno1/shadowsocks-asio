@@ -275,3 +275,5 @@ doc/package.json
 withopenssl
 clang-build/
 
+compile_commands.json
+
