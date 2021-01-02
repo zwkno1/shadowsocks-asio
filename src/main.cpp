@@ -117,21 +117,22 @@ int main(int argc, char *argv[])
            });
         });
 
-        size_t workers = config.workers.value_or(1);
-        if(workers == 0) {
-            workers = 1;
-        }
-        std::vector<std::thread> threads{workers};
-        for(auto & i : threads)
-        {
-            i = std::thread([&]() {
-                context.run();
-            });
-        }
+        //size_t workers = config.workers.value_or(1);
+        //if(workers == 0) {
+        //    workers = std::thread::hardware_concurrency();
+        //}
+        //std::vector<std::thread> threads{workers};
+        //for(auto & i : threads)
+        //{
+        //    i = std::thread([&]() {
+        //        context.run();
+        //    });
+        //}
 
-        for(auto & i : threads) {
-            i.join();
-        }
+        //for(auto & i : threads) {
+        //    i.join();
+        //}
+        io_context.run();
     }
     catch(const CryptoPP::Exception & e)
     {
