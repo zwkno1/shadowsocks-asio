@@ -258,6 +258,7 @@ linux/
 btest/
 
 build*
+.clangd
 .vscode
 .vscode/.cmaketools.json
 .vscode/launch.json
@@ -273,4 +274,6 @@ doc/package.json
 
 withopenssl
 clang-build/
+
+compile_commands.json
 

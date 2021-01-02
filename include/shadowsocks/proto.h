@@ -12,9 +12,10 @@ namespace shadowsocks
 // 0x01: host is a 4-byte IPv4 address.
 // 0x03: host is a variable length string, starting with a 1-byte length, followed by up to 255-byte domain name.
 // 0x04: host is a 16-byte IPv6 address.
+
 enum parse_result : uint8_t
 {
-    parse_ok,
+    parse_ok = 0,
     parse_need_more,
     parse_invalid_address,
     parse_invalid_version,
@@ -42,21 +43,6 @@ public:
         : type_(0)
         , port_(0)
     {
-    }
-    
-    size_t bytes() const
-    {
-        switch (type_)
-        {
-        case IPV4:
-            return 7;
-        case DOMAINNAME:
-            return 4 + std::get<std::string>(addr_).size();
-        case IPV6:
-            return 19;
-        default:
-            return 0;
-        }
     }
     
     uint8_t type() const
@@ -89,10 +75,14 @@ public:
         return port_;
     }
     
-    parse_result parse(const uint8_t *data, size_t size)
+    parse_result parse(asio::streambuf & buf)
     {
-        if(size < 4)
+        auto data = static_cast<const uint8_t *>(buf.data().data());
+        const size_t size = buf.size();
+        if(size < 4){
             return parse_need_more;
+        }
+
         type_ = data[0];
         switch (type_)
         {
@@ -106,6 +96,7 @@ public:
             std::memcpy(addr.data(), &data[1], 4);
             addr_ = asio::ip::address_v4{addr};
             port_ = (uint16_t{data[5]} << 8) | data[6];
+            buf.consume(7);
             return parse_ok;
         }
         case DOMAINNAME:
@@ -117,6 +108,7 @@ public:
             }
             addr_ = std::string {reinterpret_cast<const char *>(&data[2]), addrlen};
             port_ = (uint16_t{data[addrlen+2]} << 8) | data[addrlen+3];
+            buf.consume(addrlen+4);
             return parse_ok;
         }
         case IPV6:
@@ -129,6 +121,7 @@ public:
             std::memcpy(addr.data(), &data[1], 16);
             addr_ = asio::ip::address_v6{addr};
             port_ = (uint16_t{data[17]} << 8) | data[18];
+            buf.consume(19);
             return parse_ok;
         }
         default:
@@ -146,6 +139,15 @@ private:
     
     uint16_t port_;
 };
+
+
+/*
+ *   +----+----------+----------+
+ *   |VER | NMETHODS | METHODS  |
+ *   +----+----------+----------+
+ *   | 1  |    1     | 1 to 255 |
+ *   +----+----------+----------+
+ */
 
 class socks5_handshake_request
 {
@@ -170,8 +172,11 @@ public:
         return methods_[index];
     }
     
-    parse_result parse(const uint8_t *data, size_t size)
+    parse_result parse(asio::streambuf & buf)
     {
+        auto data = static_cast<const uint8_t *>(buf.data().data());
+        const size_t size = buf.size();
+
         if(size < 2)
         {
             return parse_need_more;
@@ -191,6 +196,8 @@ public:
         
         std::memcpy(methods_.data(), data + 2, nmethod_);
         
+        buf.consume(nmethod_ + 2);
+
         return parse_ok;
     }
 private:
@@ -198,16 +205,21 @@ private:
     std::array<uint8_t, 255> methods_;
 };
 
+/*
+ *  socks5 handshake reply
+ *  +----+--------+
+ *  |VER | METHOD |
+ *  +----+--------+
+ *  | 1  |   1    |
+ *  +----+--------+
+ */
+
 class socks5_handshake_response
 {
 public:
     socks5_handshake_response()
+        : method_(0)
     {
-    }
-    
-    size_t bytes() const
-    {
-        return 2;
     }
     
     uint8_t & method()
@@ -215,10 +227,12 @@ public:
         return method_;
     }
     
-    void copy_to(uint8_t * dst)
+    void write(asio::streambuf & buf) const
     {
-        dst[0] = SOCKS5_VERSION;
-        dst[1] = method_;
+        auto wpos = static_cast<uint8_t *>(buf.prepare(2).data());
+        *wpos++ = SOCKS5_VERSION;
+        *wpos++ = method_;
+        buf.commit(2);
     }
 private:
     uint8_t method_;
@@ -308,42 +322,55 @@ public:
     }
     
     // convert to shadowsocks request
-    size_t copy_to(uint8_t * data)
+    void write_as_shadowsocks(asio::streambuf & buf) const
     {
-        data[1] = type_;
-        size_t offset;
         switch(type_)
         {
             case IPV4:
             {
+                auto wpos = static_cast<uint8_t *>(buf.prepare(7).data());
+                *wpos++ = type_;
                 asio::ip::address_v4::bytes_type addr = address().to_v4().to_bytes();
-                std::memcpy(&data[1], addr.data(), addr.size());
-                offset = 5;
+                std::memcpy(wpos, addr.data(), 4);
+                wpos += 4;
+                *wpos++ = ((port_ >> 8) & 0xff);
+                *wpos++ = (port_ & 0xff);
+		        buf.commit(7);
+                break;
             }
             case DOMAINNAME:
             {
-                data[1] = domain().size();
-                std::memcpy(&data[2], domain().data(), domain().size());
-                offset = 2 + domain().size();
+                auto wpos = static_cast<uint8_t *>(buf.prepare(domain().size() + 4).data());
+                *wpos++ = type_;
+                *wpos++ = domain().size();
+                std::memcpy(wpos, domain().data(), domain().size());
+                wpos += domain().size();
+                *wpos++ = ((port_ >> 8) & 0xff);
+                *wpos++ = (port_ & 0xff);
+		        buf.commit(domain().size() + 4);
+                break;
             }
             case IPV6:
             {
-                asio::ip::address_v6::bytes_type addr = address().to_v6().to_bytes();
-                std::memcpy(&data[1], addr.data(), addr.size());
-                offset = 17;
+                auto wpos = static_cast<uint8_t *>(buf.prepare(19).data());
+                *wpos++ = type_;
+                asio::ip::address_v4::bytes_type addr = address().to_v4().to_bytes();
+                std::memcpy(wpos, addr.data(), 16);
+                wpos += 16;
+                *wpos++ = ((port_ >> 8) & 0xff);
+                *wpos++ = (port_ & 0xff);
+		        buf.commit(7);
+                break;
             }
             default:
-            {
-                return 0;
-            }
+                break;
         }
-        data[offset] = ((port_ >> 8) & 0xff);
-        data[offset+1] = (port_ & 0xff);
-        return offset + 2;
     }
     
-    parse_result parse(const uint8_t * data, size_t size)
+    parse_result parse(asio::streambuf & buf)
     {
+        auto data = static_cast<const uint8_t *>(buf.data().data());
+        const size_t size = buf.size();
         if(size < 7)
             return parse_need_more;
         if(data[0] != SOCKS5_VERSION)
@@ -368,6 +395,7 @@ public:
             std::memcpy(addr.data(), &data[4], 4);
             addr_ = asio::ip::address_v4{addr};
             port_ = (uint16_t{data[8]} << 8) | data[9];
+			buf.consume(10);
             return parse_ok;
         }
         case DOMAINNAME:
@@ -379,6 +407,7 @@ public:
             }
             addr_ = std::string {reinterpret_cast<const char *>(&data[5]), addrlen};
             port_ = (uint16_t{data[addrlen+5]} << 8) | data[addrlen+6];
+			buf.consume(addrlen+7);
             return parse_ok;
         }
         case IPV6:
@@ -391,6 +420,7 @@ public:
             std::memcpy(addr.data(), &data[4], 16);
             addr_ = asio::ip::address_v6{addr};
             port_ = (uint16_t{data[20]} << 8) | data[21];
+			buf.consume(22);
             return parse_ok;
         }
         default:
@@ -408,8 +438,86 @@ private:
     > addr_;
     
     uint16_t port_;
-    
 };
 
+/*
+ *    +----+-----+-------+------+----------+----------+
+ *    |VER | REP |  RSV  | ATYP | BND.ADDR | BND.PORT |
+ *    +----+-----+-------+------+----------+----------+
+ *    | 1  |  1  | X'00' |  1   | Variable |    2     |
+ *    +----+-----+-------+------+----------+----------+
+ *
+ *      o  VER    protocol version: X'05'
+ *      o  REP    Reply field:
+ *         o  X'00' succeeded
+ *         o  X'01' general SOCKS server failure
+ *         o  X'02' connection not allowed by ruleset
+ *         o  X'03' Network unreachable
+ *         o  X'04' Host unreachable
+ *         o  X'05' Connection refused
+ *         o  X'06' TTL expired
+ *         o  X'07' Command not supported
+ *         o  X'08' Address type not supported
+ *         o  X'09' to X'FF' unassigned
+ *      o  RSV    RESERVED
+ *      o  ATYP   address type of following address
+ *         o  IP V4 address: X'01'
+ *         o  DOMAINNAME: X'03'
+ *         o  IP V6 address: X'04'
+ *      o  BND.ADDR       server bound address
+ *      o  BND.PORT       server bound port in network octet order
+ */
 
-}
+class socks5_response
+{
+public:
+    socks5_response()
+    {
+    }
+
+    asio::ip::address & address() 
+    {
+        return address_;
+    }
+
+    uint16_t & port()
+    {
+        return port_;
+    }
+
+    void write(asio::streambuf & buf) const
+    {
+        if(address_.is_v4()) {
+            auto wpos = static_cast<uint8_t *>(buf.prepare(10).data());
+            wpos[0] = SOCKS5_VERSION;
+            wpos[1] = 0;
+            wpos[2] = 0;
+            wpos[3] = IPV4;
+            auto addr = address_.to_v4().to_bytes();
+            memcpy(wpos + 4, addr.data(), addr.size());
+            wpos[8] = port_ & 0xff;
+            wpos[9] = port_ >> 8;
+            buf.commit(10);
+        }
+        else
+        {
+            auto wpos = static_cast<uint8_t *>(buf.prepare(22).data());
+            wpos[0] = SOCKS5_VERSION;
+            wpos[1] = 0;
+            wpos[2] = 0;
+            wpos[3] = IPV6;
+            auto addr = address_.to_v6().to_bytes();
+            memcpy(wpos + 4, addr.data(), addr.size());
+            wpos[20] = port_ & 0xff;
+            wpos[21] = port_ >> 8;
+            buf.commit(22);
+        }
+    }
+
+private:
+    asio::ip::address address_;
+
+    uint16_t port_;
+};
+
+} // namespace shadowsocks

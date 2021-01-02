@@ -1,79 +1,75 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.2)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(shadowsocks-asio)
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules ${CMAKE_MODULE_PATH})
 
 include(${PROJECT_SOURCE_DIR}/cmake/external/cryptopp.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/external/spdlog.cmake)
 
 find_package(Threads)
 
+add_definitions(
+	-DBOOST_COROUTINES_NO_DEPRECATION_WARNING=1
+)
 option(Boost_USE_STATIC_LIBS "use boost static libs" ON)
-find_package(Boost 1.66 COMPONENTS system program_options REQUIRED)
+find_package(Boost 1.70 COMPONENTS system program_options coroutine thread unit_test_framework REQUIRED)
 
-set(GPERFTOOLS_USE_STATIC_LIBS TRUE)
-find_package(gperftools REQUIRED)
 
 include_directories(${Boost_INCLUDE_DIR} 
-	${CryptoPP_INCLUDE_DIRS} 
-	${CryptoPP_INCLUDE_DIRS}/cryptopp
-	${GPERFTOOLS_INCLUDE_DIR}
-	./third_party/spdlog/include 
+	${CRYPTOPP_INCLUDE_DIRS} 
+	${SPDLOG_INCLUDE_DIRS}
 	./third_party/serialization2/include
 	./include 
-	)
-
-file(GLOB_RECURSE HEADER_FILES "./include/*.h ./include/detail/*.h")
-add_custom_target(headers SOURCES ${HEADER_FILES})
+)
 
 # ss-local
 add_executable(ss-local
-	${HEADER_FILES}
-	src/server.cpp
-	)
-add_dependencies(ss-local CryptoPP)
+	src/main.cpp
+)
+add_dependencies(ss-local CRYPTOPP SPDLOG)
 
 target_link_libraries(ss-local
 	${Boost_LIBRARIES}
-	${CryptoPP_LIBRARIES}
+	${CRYPTOPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
-	${GPERFTOOLS_TCMALLOC_LIBRARY}
-	)
-	
-#ss-server
+)
+
+# ss-server
 add_executable(ss-server 
-	${HEADER_FILES}
-	src/server.cpp
-	)
-add_dependencies(ss-server CryptoPP)
+	src/main.cpp
+)
+add_dependencies(ss-server CRYPTOPP SPDLOG)
 
 set_target_properties(
     ss-server
     PROPERTIES
     COMPILE_DEFINITIONS BUILD_SHADOWSOCKS_SERVER=1
-    )
+)
 
 target_link_libraries(ss-server
 	${Boost_LIBRARIES}
-	${CryptoPP_LIBRARIES}
+	${CRYPTOPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
-	${GPERFTOOLS_TCMALLOC_LIBRARY}
-	)
+)
 
-
-option(SHADOWSOCKS_ENABLE_TEST "build test" OFF)
-if(SHADOWSOCKS_ENABLE_TEST STREQUAL "ON")
-add_executable(cipher_test
-	${HEADER_FILES}
-	test/cipher_test.cpp
+option(ENABLE_TEST "build test" OFF)
+if(ENABLE_TEST STREQUAL "ON")
+    include(CTest)
+    enable_testing()
+    
+    add_executable(cipher_test test/cipher_test.cpp)
+    add_dependencies(cipher_test CRYPTOPP SPDLOG)
+    target_link_libraries(cipher_test
+    	${CRYPTOPP_LIBRARIES}
+    	${Boost_LIBRARIES}
+    	${CMAKE_THREAD_LIBS_INIT}
 	)
-add_dependencies(cipher_test CryptoPP)
-target_link_libraries(cipher_test
-	${CryptoPP_LIBRARIES}
-	${CMAKE_THREAD_LIBS_INIT}
-	)
+		
+    add_test(NAME cipher_test COMMAND cipher_test)
 endif()
 
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/config/client.json DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
