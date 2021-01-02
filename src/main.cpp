@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
         //for(auto & i : threads) {
         //    i.join();
         //}
-        io_context.run();
+        context.run();
     }
     catch(const CryptoPP::Exception & e)
     {
