@@ -12,7 +12,7 @@ namespace shadowsocks
 struct config
 {
     std::optional<std::string> log_level;
-    std::string server_address;
+    std::string server;
     uint16_t server_port;
     std::optional<std::string> local_address;
     std::optional<uint16_t> local_port;
@@ -25,7 +25,7 @@ struct config
     const cipher_info * cipher = nullptr;
     cipher_key key;
     
-    SERIALIZATION_DEFINE(log_level, server_address, server_port, local_address, local_port, method, password, timeout, no_delay, workers)
+    SERIALIZATION_DEFINE(log_level, server, server_port, local_address, local_port, method, password, timeout, no_delay, workers)
 };
 
 } // namespace shadowsocks

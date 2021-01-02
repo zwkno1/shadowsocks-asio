@@ -108,7 +108,7 @@ private:
         }
 
         // connect to ss-server 
-        tcp::endpoint remote_endpoint = {asio::ip::make_address(config_.server_address), config_.server_port};
+        tcp::endpoint remote_endpoint = {asio::ip::make_address(config_.server), config_.server_port};
         remote_.next_layer().async_connect(remote_endpoint, yield);
 
         // write shadowsocks address

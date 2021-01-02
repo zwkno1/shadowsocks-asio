@@ -40,7 +40,7 @@ bool parse_command_line(int argc, char * argv[], std::string & configFile)
 using session_type = shadowsocks::server_session;
 std::optional<tcp::endpoint> get_endpoint(const shadowsocks::config & config) {
     std::optional<tcp::endpoint> result;
-    result.emplace(asio::ip::make_address(config.server_address), config.server_port);
+    result.emplace(asio::ip::make_address(config.server), config.server_port);
     return result;
 }
 #else
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
         return -1;
     }
     config.key = shadowsocks::make_cipher_key(*config.cipher, config.password);
-    spdlog::info("cipher method: {}", config.method);
+    SPDLOG_INFO("cipher method: {}", config.method);
     
     try 
     {
@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
         asio::spawn(context, [&](asio::yield_context yield) {
           asio::steady_timer timer{context};
           for (error_code ec; !ec;) {
-            spdlog::info("session count: {}", session_type::get_counter());
+            SPDLOG_INFO("session count: {}", session_type::get_counter());
             timer.expires_from_now(std::chrono::seconds(4));
             timer.async_wait(yield[ec]);
           }
@@ -116,7 +116,22 @@ int main(int argc, char *argv[])
               session->run(yield);
            });
         });
-        context.run();
+
+        size_t workers = config.workers.value_or(1);
+        if(workers == 0) {
+            workers = 1;
+        }
+        std::vector<std::thread> threads{workers};
+        for(auto & i : threads)
+        {
+            i = std::thread([&]() {
+                context.run();
+            });
+        }
+
+        for(auto & i : threads) {
+            i.join();
+        }
     }
     catch(const CryptoPP::Exception & e)
     {

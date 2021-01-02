@@ -1,12 +1,12 @@
 {
 	"log_level":"debug",
     "server":"127.0.0.1",
-    "server_address":"127.0.0.1",
     "local_address":"0.0.0.0",
     "server_port":33333,
     "local_port":9999,
     "method": "chacha20-ietf-poly1305",
     "password":"123456",
-    "timeout":300
+    "timeout":10,
+	"workers":4
 }
 
